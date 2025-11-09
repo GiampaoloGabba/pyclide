@@ -279,9 +279,9 @@ python -m pyclide_server --root . --port 5555
 - `exec()`, `eval()` references not detected
 
 **Recommendations**:
-- Preview changes before applying (client returns JSON patches)
+- Preview changes before applying (server returns JSON patches)
 - Run tests after refactoring
-- Use `--force` flag for non-interactive mode
+- Client (Claude Code) decides when to apply patches
 
 ### Jedi Navigation Notes
 
