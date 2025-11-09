@@ -1,0 +1,6 @@
+id: rename-variable
+language: python
+rule:
+  pattern: old_name
+fix: new_name
+message: Rename old_name to new_name

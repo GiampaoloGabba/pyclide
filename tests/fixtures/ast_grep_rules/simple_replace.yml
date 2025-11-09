@@ -1,0 +1,6 @@
+id: simple-replace
+language: python
+rule:
+  pattern: print($ARG)
+fix: logger.info($ARG)
+message: Replace print with logger.info

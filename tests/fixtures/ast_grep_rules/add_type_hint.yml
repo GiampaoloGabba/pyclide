@@ -1,0 +1,10 @@
+id: add-type-hint
+language: python
+rule:
+  pattern: |
+    def $FUNC($PARAM):
+        $$$BODY
+fix: |
+  def $FUNC($PARAM: str):
+      $$$BODY
+message: Add type hint to parameter
