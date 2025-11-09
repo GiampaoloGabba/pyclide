@@ -1,8 +1,54 @@
-# PyCLIDE Plugin for Claude Code
+# PyCLIDE: Python Command-Line IDE
 
-**Python Command-Line IDE** packaged as a Claude Code skill with standalone executables.
+**High-performance Python semantic analysis and refactoring** with client-server architecture for 10-20x faster repeated operations.
 
-Provides IDE-quality semantic code analysis and refactoring for Python projects using Jedi (navigation) and Rope (refactoring), without requiring Python dependencies in your project environment.
+Provides IDE-quality code analysis using Jedi (navigation) and Rope (refactoring) with **persistent hot cache** for instant responses.
+
+## Architecture
+
+PyCLIDE uses a **client-server architecture** for optimal performance:
+
+- **Client**: Lightweight Python script (stdlib only) bundled with Claude Code skill
+- **Server**: Background process with hot RAM cache (auto-downloaded from GitHub via uvx)
+- **Performance**:
+  - First query: ~800ms (cold start)
+  - Subsequent queries: **20-50ms** (hot cache)
+  - **14x faster** than one-shot CLI for repeated operations
+
+### How It Works
+
+```
+┌─────────────────┐
+│  Claude Code    │
+│  invokes skill  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐      1. Check registry
+│  pyclide_client │──────────────────────┐
+│  (stdlib only)  │                      │
+└────────┬────────┘                      ▼
+         │                    ┌──────────────────┐
+         │ 2. Start if needed │ Server Registry  │
+         │                    │ ~/.pyclide/      │
+         ├───────────────────▶│ servers.json     │
+         │                    └──────────────────┘
+         │ 3. HTTP request
+         ▼
+┌─────────────────────────────────────┐
+│  pyclide-server (per workspace)     │
+│  ┌─────────┬──────────┬───────────┐ │
+│  │FastAPI  │Hot Cache │File Watch │ │
+│  │Port:auto│Jedi+Rope │Invalidate │ │
+│  └─────────┴──────────┴───────────┘ │
+└─────────────────────────────────────┘
+```
+
+**Key features**:
+- One server per workspace (isolated environments)
+- Auto-start on first use (transparent to user)
+- File watcher maintains cache consistency
+- Auto-shutdown after 30 minutes inactivity
 
 ## Features
 
@@ -16,75 +62,52 @@ Provides IDE-quality semantic code analysis and refactoring for Python projects 
 - **Extract method/variable** - Refactor code into reusable components
 - **Move symbols** - Reorganize code between files
 - **Organize imports** - Clean up and normalize imports
+- **Semantic occurrences** - Find references within rename scope
 
 ### Utilities
 - **List symbols** - Quick overview of classes/functions (AST-based, fast)
-- **AST codemods** - Mass transformations with ast-grep
+- **AST codemods** - Mass transformations with ast-grep (optional)
 
 **Note:** For text search, use Claude Code's native Grep tool (built-in ripgrep integration).
 
 ## Installation
 
-### Option 1: Install to Personal Skills (Recommended)
+### Prerequisites
 
-Copy the plugin to your personal Claude Code skills directory:
+**Required:**
+- Python 3.8+ (already required for Claude Code)
+- `uv` package manager: `pip install uv`
+
+**Optional:**
+- `ast-grep` for AST transformations: `cargo install ast-grep`
+
+### Install to Claude Code Skills
+
+Copy the skill to your personal skills directory:
 
 ```bash
 # Linux/macOS
-cp -r pyclide-plugin ~/.claude/skills/pyclide
+cp -r skills/pyclide ~/.claude/skills/pyclide
 
 # Windows (PowerShell)
-Copy-Item -Recurse pyclide-plugin "$env:USERPROFILE\.claude\skills\pyclide"
+Copy-Item -Recurse skills\pyclide "$env:USERPROFILE\.claude\skills\pyclide"
 ```
 
-### Option 2: Install to Project Skills
+**That's it!** The server will be **auto-downloaded from GitHub** on first use.
 
-Copy to your project's `.claude/skills/` directory for team sharing:
+### First-Time Setup Flow
 
-```bash
-cp -r pyclide-plugin /path/to/your-project/.claude/skills/pyclide
-```
+When Claude Code first invokes PyCLIDE:
 
-Then commit `.claude/skills/pyclide` to git (but see [.gitignore setup](#gitignore-for-binaries) for large binaries).
+1. **Client executes**: `python ~/.claude/skills/pyclide/pyclide_client.py defs app.py 10 5`
+2. **Client detects no server** for workspace
+3. **Client runs**: `uvx --from git+https://github.com/GiampaoloGabba/pyclide pyclide-server --root /workspace --port 5001 --daemon`
+4. **uvx downloads** `pyclide-server` from GitHub (first time only, ~5s)
+5. **Server starts** in background
+6. **Client sends HTTP request** to server
+7. **Result returned** to Claude Code
 
-## Building Binaries
-
-The plugin includes **standalone executables** to avoid polluting your project's Python environment with dependencies.
-
-### Prerequisites
-
-Install PyInstaller and dependencies:
-
-```bash
-pip install pyinstaller typer[all] jedi rope
-```
-
-### Build for Your Platform
-
-**Linux/macOS:**
-```bash
-chmod +x build/build.sh
-./build/build.sh
-```
-
-**Windows:**
-```cmd
-build\build.bat
-```
-
-This creates:
-- `bin/pyclide.exe` (Windows)
-- `bin/pyclide-linux` (Linux)
-- `bin/pyclide-macos` (macOS)
-
-### Cross-Platform Builds
-
-To build for all platforms, run the build script on each OS:
-1. Run `build.sh` on Linux → produces `bin/pyclide-linux`
-2. Run `build.sh` on macOS → produces `bin/pyclide-macos`
-3. Run `build.bat` on Windows → produces `bin/pyclide.exe`
-
-Copy all binaries to `bin/` directory for full cross-platform support.
+Subsequent invocations use the running server (**20-50ms response time**).
 
 ## Usage
 
@@ -100,233 +123,338 @@ Once installed, Claude Code will **automatically invoke** the skill when you req
 
 ### Manual Invocation
 
-You can also invoke commands directly:
+You can invoke the client directly for testing:
 
 ```bash
-# Via wrapper script (auto-detects platform)
-./scripts/pyclide-wrapper.sh defs app.py 10 5 --root .
+# Via skill client
+python ~/.claude/skills/pyclide/pyclide_client.py defs app.py 10 5 --root .
+python ~/.claude/skills/pyclide/pyclide_client.py rename app.py 10 5 new_name --root .
+```
 
-# Or directly (platform-specific)
-./bin/pyclide-linux defs app.py 10 5 --root .
+### Server Management
+
+Check running servers:
+
+```bash
+cat ~/.pyclide/servers.json
+```
+
+Stop all servers:
+
+```bash
+# Servers auto-shutdown after 30 minutes of inactivity
+# Or send shutdown request:
+curl -X POST http://127.0.0.1:PORT/shutdown
 ```
 
 ## Documentation
 
 - **[SKILL.md](skills/pyclide/SKILL.md)** - Concise skill reference for Claude
 - **[REFERENCE.md](skills/pyclide/REFERENCE.md)** - Complete command documentation
-
-## Optional Tools
-
-PyCLIDE works out-of-the-box. The following optional tool enhances functionality:
-
-### ast-grep (AST Transformations)
-
-**All platforms:**
-```bash
-cargo install ast-grep
-```
-
-Or download from [ast-grep releases](https://github.com/ast-grep/ast-grep/releases)
+- **[PYCLIDE_SERVER_PLAN.md](docs/PYCLIDE_SERVER_PLAN.md)** - Server architecture details
+- **[TESTING_PLAN.md](docs/TESTING_PLAN.md)** - Comprehensive test plan
 
 ## Project Structure
 
 ```
 python-semantic-ide/
-├── pyclide.py                   # 🔥 Main source code (CURRENT)
-├── .claude-plugin/
-│   └── plugin.json              # Plugin manifest
-├── skills/
-│   └── pyclide/
-│       ├── SKILL.md             # Skill definition (for Claude)
-│       └── REFERENCE.md         # Complete command reference
-├── bin/                         # Standalone executables
-│   ├── pyclide.exe              # Windows binary
-│   ├── pyclide-linux            # Linux binary
-│   └── pyclide-macos            # macOS binary
-├── scripts/
-│   ├── pyclide-wrapper.sh       # Bash wrapper (Linux/macOS/Git Bash)
-│   └── pyclide-wrapper.bat      # Batch wrapper (Windows)
-├── build/
-│   ├── build.sh                 # Build script (Linux/macOS)
-│   └── build.bat                # Build script (Windows)
-├── .gitignore                   # Ignore binaries and build artifacts
-└── README.md                    # This file
+├── pyclide.py                    # Original CLI (maintained for compatibility)
+├── pyclide_server/               # Server package (published to PyPI)
+│   ├── __init__.py
+│   ├── __main__.py               # Entry point: pyclide-server
+│   ├── server.py                 # FastAPI server with hot cache
+│   ├── rope_engine.py            # Rope integration
+│   ├── jedi_helpers.py           # Jedi integration
+│   ├── file_watcher.py           # Cache invalidation
+│   ├── health.py                 # Auto-shutdown monitoring
+│   └── models.py                 # Pydantic request/response models
+├── skills/pyclide/               # Claude Code skill
+│   ├── SKILL.md                  # Skill definition
+│   ├── REFERENCE.md              # Command reference
+│   └── pyclide_client.py         # Client (~400 lines, stdlib only)
+├── tests/                        # Test suite
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── docs/                         # Documentation
+│   ├── PYCLIDE_SERVER_PLAN.md
+│   └── TESTING_PLAN.md
+├── pyproject.toml                # PyPI package config
+└── README.md                     # This file
 ```
 
-## gitignore for Binaries
+## Performance
 
-Since standalone binaries are large (~40-60 MB each), you may want to exclude them from git:
+| Scenario | One-Shot CLI | Server (Hot Cache) | Improvement |
+|----------|--------------|-------------------|-------------|
+| First query | 800ms | 800ms | - |
+| Second query | 700ms | **20-50ms** | **14-35x** |
+| 10 queries | 7000ms | **500ms** | **14x** |
+| Find refs (10k LOC) | 1500ms | **100-200ms** | **7-15x** |
 
-**Add to `.gitignore`:**
-```gitignore
-# PyCLIDE binaries (too large for git)
-bin/pyclide*
-!bin/.gitkeep
-
-# Build artifacts
-build/work/
-build/*.spec
-```
-
-Users who clone the repo can build their own binaries using `build.sh` or `build.bat`.
-
-**Alternative:** Use Git LFS (Large File Storage) if you want to commit binaries:
-```bash
-git lfs track "bin/pyclide*"
-```
-
-## Distribution
-
-### As a Plugin Archive
-
-1. Build binaries for all platforms
-2. Create archive:
-   ```bash
-   tar -czf pyclide-plugin.tar.gz pyclide-plugin/
-   # Or zip for Windows
-   zip -r pyclide-plugin.zip pyclide-plugin/
-   ```
-3. Share the archive (users extract to `.claude/skills/`)
-
-### Via Git Repository
-
-1. Push to GitHub/GitLab
-2. Users clone:
-   ```bash
-   cd ~/.claude/skills
-   git clone https://github.com/yourusername/pyclide-plugin.git pyclide
-   cd pyclide
-   ./build/build.sh  # Build for their platform
-   ```
-
-### Via Claude Plugin Marketplace (Future)
-
-Once Claude Code supports a plugin marketplace, this plugin can be published for one-click installation.
-
-## Known Limitations
-
-### Rope Refactoring Limitations
-
-Rope is a powerful refactoring library, but has some limitations in complex scenarios:
-
-**Cross-Directory References:**
-- May not find all references when code uses `sys.path.insert()` or complex import mechanisms
-- Works best with standard Python package structures (`__init__.py`, relative imports)
-
-**Coordinate Precision:**
-- Refactoring operations (rename, extract) require exact positioning on the identifier
-- Position must point to the symbol name, not docstrings, comments, or whitespace
-- Rope uses 1-based line numbers and 1-based column positions (byte offsets)
-
-**Dynamic Code:**
-- May not detect references in dynamically imported modules
-- String-based imports (`__import__()`, `importlib`) are not tracked
-
-**Recommendations:**
-- For simple refactorings (rename, extract): Works reliably in standard codebases
-- For complex multi-layer architectures: Verify changes before applying
-- Use `--json` mode to preview changes before applying them
-- Consider running tests after refactoring to catch edge cases
-
-### Jedi Navigation Notes
-
-- Jedi uses 1-based line numbers but 0-indexed column positions
-- `goto` may return import locations instead of original definitions
-- Works best with properly structured Python packages
-
-## Troubleshooting
-
-### "PyCLIDE binary not found"
-
-Run the build script for your platform:
-```bash
-./build/build.sh    # Linux/macOS
-build\build.bat     # Windows
-```
-
-### "Permission denied" (Linux/macOS)
-
-Make wrapper and build scripts executable:
-```bash
-chmod +x scripts/pyclide-wrapper.sh
-chmod +x build/build.sh
-```
-
-### "Jedi not installed" (when running source)
-
-This message should never appear when using the standalone binary (it includes all dependencies). If you see it:
-1. Verify you're using the binary, not the Python script directly
-2. Rebuild the binary: `./build/build.sh`
-
-### Build fails with "ModuleNotFoundError"
-
-Install missing dependencies:
-```bash
-pip install pyinstaller typer[all] jedi rope
-```
-
-### Binary size is too large
-
-Standalone binaries include Python runtime + all dependencies (~40-60 MB). This is expected and ensures zero dependency installation.
-
-To reduce size:
-- Use UPX compression (advanced): `pyinstaller --upx-dir=/path/to/upx ...`
-- Or distribute source + require users to install Python dependencies
+**Memory footprint**: ~50-120MB per workspace (includes Python runtime, Jedi, Rope, caches)
 
 ## Development
 
-### Running from Source
+### Running Server Locally
 
-For development, you can run the source directly (requires Python + dependencies):
+For development/testing without uvx:
 
 ```bash
 # Install dependencies
-pip install typer[all] jedi rope
+pip install -e .  # Installs from pyproject.toml
 
-# Run directly from root directory
-python pyclide.py defs app.py 10 5 --root .
+# Start server manually
+python -m pyclide_server --root . --port 5555
+
+# In another terminal, test with client
+python skills/pyclide/pyclide_client.py defs app.py 10 5 --root .
+```
+
+### Running Tests
+
+```bash
+# Install test dependencies
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run specific test categories
+pytest -m unit              # Fast unit tests
+pytest -m integration       # Integration tests
+pytest -m e2e              # End-to-end tests
+pytest -m "not slow"       # Skip slow tests
+
+# With coverage
+pytest --cov=pyclide_server --cov-report=html
 ```
 
 ### Making Changes
 
-1. Edit `pyclide.py` **(in the root directory)**
-2. Test locally:
-   ```bash
-   python pyclide.py --help
-   python pyclide.py defs test.py 1 1
-   ```
-3. Rebuild binaries:
-   ```bash
-   ./build/build.sh
-   ```
-4. Update version in:
-   - `pyclide.py` (`VERSION = "x.y.z"`) - **root directory file**
-   - `.claude-plugin/plugin.json` (`version`)
+**Server code** (`pyclide_server/`):
+1. Edit server modules
+2. Test locally: `python -m pyclide_server --root . --port 5555`
+3. Run tests: `pytest tests/`
+4. Update version in `pyproject.toml` and `pyclide_server/__init__.py`
+
+**Client code** (`skills/pyclide/pyclide_client.py`):
+1. Edit client (keep stdlib-only!)
+2. Test: `python skills/pyclide/pyclide_client.py defs ...`
+3. Update `SKILL.md` if command interface changes
+
+**Original CLI** (`pyclide.py`):
+- Maintained for backward compatibility
+- Not used by skill (uses client-server instead)
+
+## Distribution
+
+### As Claude Code Skill
+
+1. Copy `skills/pyclide/` to user's `~/.claude/skills/pyclide`
+2. Server auto-downloads from GitHub on first use
+
+### Deployment
+
+The server is deployed directly from GitHub:
+
+```bash
+# Users install via uvx (automatic on first use)
+uvx --from git+https://github.com/GiampaoloGabba/pyclide pyclide-server --help
+
+# Or manually for testing
+git clone https://github.com/GiampaoloGabba/pyclide
+cd pyclide
+pip install -e .
+python -m pyclide_server --root . --port 5555
+```
+
+### Alternative: Local Development Mode
+
+For testing without GitHub, modify the client to use local installation:
+```python
+# In pyclide_client.py, replace:
+# cmd = ["uvx", "--from", GITHUB_REPO, "pyclide-server", ...]
+# with:
+# cmd = ["python", "-m", "pyclide_server", ...]
+```
+
+## Known Limitations
+
+### Server-Specific
+
+**File Watcher**:
+- Requires `watchdog` library (auto-installed with server)
+- May miss changes to files ignored by .gitignore (by design)
+- Debouncing (100ms) may delay cache invalidation slightly
+
+**Auto-Shutdown**:
+- Server shuts down after 30 minutes inactivity
+- Next query will restart server (~800ms first request)
+- Can be configured via environment variables (future)
+
+**Port Allocation**:
+- Uses ports 5000-6000
+- If all ports in use, client will fail
+- Manual cleanup: delete `~/.pyclide/servers.json`
+
+### Rope Refactoring Limitations
+
+**Cross-Directory References**:
+- May not find all references with `sys.path.insert()` or complex imports
+- Works best with standard Python package structures
+
+**Coordinate Precision**:
+- Refactoring requires exact positioning on identifier
+- Must point to symbol name, not docstrings/comments
+- Uses 1-based line and column positions
+
+**Dynamic Code**:
+- String-based imports not tracked (`__import__()`, `importlib`)
+- `exec()`, `eval()` references not detected
+
+**Recommendations**:
+- Preview changes before applying (client returns JSON patches)
+- Run tests after refactoring
+- Use `--force` flag for non-interactive mode
+
+### Jedi Navigation Notes
+
+- Works best with properly structured Python packages
+- `goto` may return import locations instead of definitions
+- Type inference limited for dynamic code
+
+## Troubleshooting
+
+### "uvx not found"
+
+Install uv package manager:
+```bash
+pip install uv
+```
+
+Or visit: https://docs.astral.sh/uv/
+
+### Server Won't Start
+
+Check logs:
+```bash
+# Server logs errors to stderr
+# Client shows server startup errors
+
+# Check if port is in use
+netstat -an | grep 5000-6000  # Unix
+netstat -an | findstr "5000"  # Windows
+```
+
+Manual cleanup:
+```bash
+# Remove stale registry entries
+rm ~/.pyclide/servers.json
+
+# Kill stuck servers
+ps aux | grep pyclide-server  # Unix
+tasklist | findstr python     # Windows
+```
+
+### "No available ports in range 5000-6000"
+
+Too many servers running or port conflicts:
+```bash
+# Stop all servers
+pkill -f pyclide-server  # Unix
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq pyclide*"  # Windows
+
+# Clean registry
+rm ~/.pyclide/servers.json
+```
+
+### Slow Performance (Cache Not Working)
+
+Check server health:
+```bash
+# Health endpoint
+curl http://127.0.0.1:PORT/health
+
+# Should show:
+# - cache_size > 0 (after first queries)
+# - uptime > 0
+# - status: "ok"
+```
+
+Restart server:
+```bash
+# Send shutdown
+curl -X POST http://127.0.0.1:PORT/shutdown
+
+# Next query will start fresh server
+```
+
+### Cache Out of Sync
+
+File watcher should auto-invalidate cache, but if you see stale results:
+
+```bash
+# Restart server to clear cache
+curl -X POST http://127.0.0.1:PORT/shutdown
+```
+
+Or wait 30 minutes for auto-shutdown.
+
+### "Module not found" Errors
+
+Server dependencies missing:
+```bash
+# Install from GitHub
+uvx --from git+https://github.com/GiampaoloGabba/pyclide pyclide-server --help
+
+# Or install from source
+git clone https://github.com/GiampaoloGabba/pyclide
+cd pyclide
+pip install -e .
+```
+
+## Security Notes
+
+- Server binds to `127.0.0.1` (localhost only)
+- No authentication (assumes local trusted environment)
+- Server auto-shuts down after inactivity
+- File watcher respects .gitignore (won't analyze secrets)
+
+**DO NOT expose server to network** - it's designed for local-only use.
 
 ## License
 
-MIT License - see source file for details.
+MIT License - see source files for details.
 
 ## Contributing
 
 Contributions welcome! Please:
+
 1. Fork the repository
 2. Create a feature branch
-3. Test on your platform
-4. Submit a pull request
+3. Add tests for new features
+4. Run test suite: `pytest`
+5. Submit a pull request
+
+See [TESTING_PLAN.md](docs/TESTING_PLAN.md) for test guidelines.
 
 ## Credits
 
-- **Jedi** - Static analysis and code completion
+- **Jedi** - Python static analysis and code completion
 - **Rope** - Python refactoring library
-- **Typer** - Modern CLI framework
-- **PyInstaller** - Python to executable bundler
+- **FastAPI** - Modern async web framework
+- **Uvicorn** - Lightning-fast ASGI server
+- **Watchdog** - Cross-platform filesystem monitoring
+- **Typer** - Modern CLI framework (original CLI)
 
 ## Support
 
-- Issues: https://github.com/yourusername/pyclide-plugin/issues
-- Documentation: See `skills/pyclide/REFERENCE.md`
+- **Issues**: GitHub Issues
+- **Documentation**: See `docs/` directory
+- **Architecture**: [PYCLIDE_SERVER_PLAN.md](docs/PYCLIDE_SERVER_PLAN.md)
+- **Testing**: [TESTING_PLAN.md](docs/TESTING_PLAN.md)
 
 ---
 
-**Built for Claude Code** | Designed for AI-assisted Python development
+**Built for Claude Code** | High-performance Python semantic analysis with persistent hot cache
