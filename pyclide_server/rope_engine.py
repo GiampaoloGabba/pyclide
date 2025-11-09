@@ -145,24 +145,28 @@ class RopeEngine:
             patches[rel_to(self.root, pathlib.Path(r.real_path))] = new_text
         return patches
 
-    def move(self, source_spec: str, target_file: str) -> Dict[str, str]:
-        """Move a symbol or module."""
-        # Parse 'file.py::Symbol' or 'file.py'
-        if "::" in source_spec:
-            file_path, symbol = source_spec.split("::", 1)
-        else:
-            file_path, symbol = source_spec, None
+    def move(self, file_path: str, target_file: str, line: int = None, col: int = None) -> Dict[str, str]:
+        """
+        Move a symbol or module.
 
+        Args:
+            file_path: Source file path
+            target_file: Destination file path
+            line: Optional 1-based line number for symbol move
+            col: Optional 1-based column number for symbol move
+
+        If line and col are provided, moves the symbol at that position.
+        If not provided, moves the entire module.
+        """
         src_res = self._res(file_path)
         dst_res = self._res(target_file)
 
-        if symbol:
+        if line is not None and col is not None:
+            # Symbol-level move using line/col
             src_text = src_res.read()
-            m = re.search(rf"\b{re.escape(symbol)}\b", src_text)
-            if m is None:
-                raise ValueError(f"Symbol '{symbol}' not found in {file_path}")
-            offset = m.start()
+            offset = byte_offset(src_text, line, col)
         else:
+            # Module-level move
             offset = 0
 
         mover = create_move(self.project, src_res, offset)

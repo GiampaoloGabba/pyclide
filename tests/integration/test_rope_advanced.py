@@ -44,7 +44,6 @@ class MyClass:
         # Server should handle the request
         assert response.status_code in (200, 400, 500, 501)
 
-    @pytest.mark.skip(reason="Move endpoint needs symbol name, implementation may vary")
     def test_move_updates_imports(self, httpx_client, temp_workspace):
         """Test that move updates imports in referencing files."""
         # Create source file

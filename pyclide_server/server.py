@@ -345,11 +345,8 @@ class PyCLIDEServer:
                 self._update_activity()
 
                 engine = self._get_rope_engine()
-                # Build source spec: file.py or file.py::Symbol
-                # For now, we'll use simple file-level move
-                # Symbol-level move requires additional parsing
-                source_spec = req.file
-                patches = engine.move(source_spec, req.dest_file)
+                # Move symbol at specified line/col, or entire file if not specified
+                patches = engine.move(req.file, req.dest_file, req.line, req.col)
 
                 return PatchesResponse(patches=patches)
             except Exception as e:

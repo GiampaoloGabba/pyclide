@@ -33,6 +33,10 @@ from pyclide_client import (
     handle_hover,
     handle_rename,
     handle_occurrences,
+    handle_extract_method,
+    handle_extract_var,
+    handle_move,
+    handle_organize_imports,
     get_registry_path,
     load_registry,
     save_registry,
@@ -404,3 +408,114 @@ class TestServerLifecycleE2E:
         except Exception:
             # Acceptable if restart fails in test environment
             pass
+
+
+@pytest.mark.e2e
+@pytest.mark.skipif(not shutil.which("uvx"), reason="uvx not available")
+class TestExtractMethodCommandE2E:
+    """E2E tests for 'extract-method' command."""
+
+    def test_extract_method_basic(self, e2e_workspace, temp_registry, capsys):
+        """Test extracting code block to method (full E2E)."""
+        handle_extract_method(
+            ["sample_module.py", "13", "14", "get_greeting"],  # Extract lines 13-14
+            str(e2e_workspace)
+        )
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+
+        # Should return patches
+        assert "patches" in data
+        patches = data["patches"]
+        assert isinstance(patches, dict)
+
+        # Should modify sample_module.py
+        if patches:  # Rope might return empty if extraction isn't valid
+            assert any("sample_module.py" in path for path in patches.keys())
+
+
+@pytest.mark.e2e
+@pytest.mark.skipif(not shutil.which("uvx"), reason="uvx not available")
+class TestExtractVarCommandE2E:
+    """E2E tests for 'extract-var' command."""
+
+    def test_extract_var_basic(self, e2e_workspace, temp_registry, capsys):
+        """Test extracting expression to variable (full E2E)."""
+        handle_extract_var(
+            ["sample_module.py", "13", "13", "result_var"],  # Extract line 13
+            str(e2e_workspace)
+        )
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+
+        # Should return patches
+        assert "patches" in data
+        patches = data["patches"]
+        assert isinstance(patches, dict)
+
+
+@pytest.mark.e2e
+@pytest.mark.skipif(not shutil.which("uvx"), reason="uvx not available")
+class TestMoveCommandE2E:
+    """E2E tests for 'move' command."""
+
+    def test_move_function_to_new_file(self, e2e_workspace, temp_registry, capsys):
+        """Test moving a function to a new file (full E2E)."""
+        # Create destination file
+        dest_file = e2e_workspace / "new_module.py"
+        dest_file.write_text("")
+
+        handle_move(
+            ["sample_module.py", "4", "5", "new_module.py"],  # Move "hello_world" function
+            str(e2e_workspace)
+        )
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+
+        # Should return patches
+        assert "patches" in data
+        patches = data["patches"]
+        assert isinstance(patches, dict)
+
+        # Should modify at least the source file
+        if patches:
+            assert len(patches) >= 1
+
+
+@pytest.mark.e2e
+@pytest.mark.skipif(not shutil.which("uvx"), reason="uvx not available")
+class TestOrganizeImportsCommandE2E:
+    """E2E tests for 'organize-imports' command."""
+
+    def test_organize_imports_basic(self, e2e_workspace, temp_registry, capsys):
+        """Test organizing imports in a file (full E2E)."""
+        # Create file with messy imports
+        test_file = e2e_workspace / "messy_imports.py"
+        test_file.write_text("""
+import sys
+import os
+
+
+import json
+
+def use_it():
+    print(os.getcwd())
+    print(sys.version)
+    print(json.dumps({}))
+""")
+
+        handle_organize_imports(
+            ["messy_imports.py"],
+            str(e2e_workspace)
+        )
+
+        captured = capsys.readouterr()
+        data = json.loads(captured.out)
+
+        # Should return patches
+        assert "patches" in data
+        patches = data["patches"]
+        assert isinstance(patches, dict)

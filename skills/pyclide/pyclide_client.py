@@ -342,6 +342,102 @@ def handle_occurrences(args: List[str], root: str) -> None:
     print(json.dumps(result, indent=2))
 
 
+def handle_extract_method(args: List[str], root: str) -> None:
+    """Handle 'extract-method' command (extract code to method)."""
+    if len(args) < 4:
+        print("Usage: pyclide_client.py extract-method <file> <start_line> <end_line> <method_name> [--root <root>]", file=sys.stderr)
+        sys.exit(1)
+
+    file_path, start_line, end_line, method_name = args[0], int(args[1]), int(args[2]), args[3]
+    server_info = get_or_start_server(root)
+
+    result = send_request(server_info, "extract-method", {
+        "file": file_path,
+        "start_line": start_line,
+        "end_line": end_line,
+        "method_name": method_name,
+        "root": root
+    })
+
+    print(json.dumps(result, indent=2))
+
+
+def handle_extract_var(args: List[str], root: str) -> None:
+    """Handle 'extract-var' command (extract expression to variable)."""
+    if len(args) < 4:
+        print("Usage: pyclide_client.py extract-var <file> <start_line> <end_line> <var_name> [--start-col <col>] [--end-col <col>] [--root <root>]", file=sys.stderr)
+        sys.exit(1)
+
+    file_path, start_line, end_line, var_name = args[0], int(args[1]), int(args[2]), args[3]
+
+    # Parse optional --start-col and --end-col
+    start_col = None
+    end_col = None
+    if "--start-col" in sys.argv:
+        idx = sys.argv.index("--start-col")
+        if idx + 1 < len(sys.argv):
+            start_col = int(sys.argv[idx + 1])
+    if "--end-col" in sys.argv:
+        idx = sys.argv.index("--end-col")
+        if idx + 1 < len(sys.argv):
+            end_col = int(sys.argv[idx + 1])
+
+    server_info = get_or_start_server(root)
+
+    request_data = {
+        "file": file_path,
+        "start_line": start_line,
+        "end_line": end_line,
+        "var_name": var_name,
+        "root": root
+    }
+    if start_col is not None:
+        request_data["start_col"] = start_col
+    if end_col is not None:
+        request_data["end_col"] = end_col
+
+    result = send_request(server_info, "extract-var", request_data)
+
+    print(json.dumps(result, indent=2))
+
+
+def handle_move(args: List[str], root: str) -> None:
+    """Handle 'move' command (move symbol/module)."""
+    if len(args) < 4:
+        print("Usage: pyclide_client.py move <file> <line> <col> <dest_file> [--root <root>]", file=sys.stderr)
+        sys.exit(1)
+
+    file_path, line, col, dest_file = args[0], int(args[1]), int(args[2]), args[3]
+    server_info = get_or_start_server(root)
+
+    result = send_request(server_info, "move", {
+        "file": file_path,
+        "line": line,
+        "col": col,
+        "dest_file": dest_file,
+        "root": root
+    })
+
+    print(json.dumps(result, indent=2))
+
+
+def handle_organize_imports(args: List[str], root: str) -> None:
+    """Handle 'organize-imports' command (normalize imports)."""
+    if len(args) < 1:
+        print("Usage: pyclide_client.py organize-imports <file> [--root <root>]", file=sys.stderr)
+        sys.exit(1)
+
+    file_path = args[0]
+    server_info = get_or_start_server(root)
+
+    result = send_request(server_info, "organize-imports", {
+        "file": file_path,
+        "root": root
+    })
+
+    print(json.dumps(result, indent=2))
+
+
 # ============================================================================
 # Local Commands (No Server Required)
 # ============================================================================
@@ -449,15 +545,20 @@ def main() -> None:
     """Main entry point for pyclide_client."""
     if len(sys.argv) < 2:
         print("Usage: python pyclide_client.py <command> [args...] [--root <root>]", file=sys.stderr)
-        print("\nServer Commands (Jedi/Rope):", file=sys.stderr)
-        print("  defs <file> <line> <col>           - Go to definition", file=sys.stderr)
-        print("  refs <file> <line> <col>           - Find references", file=sys.stderr)
-        print("  hover <file> <line> <col>          - Symbol information", file=sys.stderr)
-        print("  rename <file> <line> <col> <name>  - Semantic rename", file=sys.stderr)
-        print("  occurrences <file> <line> <col>    - Semantic occurrences", file=sys.stderr)
+        print("\nNavigation Commands (Jedi):", file=sys.stderr)
+        print("  defs <file> <line> <col>                           - Go to definition", file=sys.stderr)
+        print("  refs <file> <line> <col>                           - Find references", file=sys.stderr)
+        print("  hover <file> <line> <col>                          - Symbol information", file=sys.stderr)
+        print("\nRefactoring Commands (Rope):", file=sys.stderr)
+        print("  occurrences <file> <line> <col>                    - Semantic occurrences", file=sys.stderr)
+        print("  rename <file> <line> <col> <new_name>              - Semantic rename", file=sys.stderr)
+        print("  extract-method <file> <sl> <el> <name>             - Extract method", file=sys.stderr)
+        print("  extract-var <file> <sl> <el> <name> [--start-col] [--end-col] - Extract variable", file=sys.stderr)
+        print("  move <file> <line> <col> <dest_file>               - Move symbol/module", file=sys.stderr)
+        print("  organize-imports <file>                            - Normalize imports", file=sys.stderr)
         print("\nLocal Commands (No Server):", file=sys.stderr)
-        print("  list <file_or_dir>                 - List top-level symbols (AST)", file=sys.stderr)
-        print("  codemod <rule.yml> [--apply]       - AST transformations (ast-grep)", file=sys.stderr)
+        print("  list <file_or_dir>                                 - List symbols (AST)", file=sys.stderr)
+        print("  codemod <rule.yml> [--apply]                       - AST transformations", file=sys.stderr)
         sys.exit(1)
 
     command = sys.argv[1]
@@ -477,12 +578,17 @@ def main() -> None:
 
     # Route command
     command_handlers = {
-        # Server commands
+        # Navigation commands (Jedi)
         "defs": handle_defs,
         "refs": handle_refs,
         "hover": handle_hover,
-        "rename": handle_rename,
+        # Refactoring commands (Rope)
         "occurrences": handle_occurrences,
+        "rename": handle_rename,
+        "extract-method": handle_extract_method,
+        "extract-var": handle_extract_var,
+        "move": handle_move,
+        "organize-imports": handle_organize_imports,
         # Local commands (no server)
         "list": handle_list,
         "codemod": handle_codemod,
