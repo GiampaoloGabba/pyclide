@@ -1,0 +1,11 @@
+{
+  "name": "pyclide",
+  "version": "1.0.0",
+  "description": "Python Command-Line IDE: Semantic code analysis and refactoring for Python projects using Jedi and Rope",
+  "author": {
+    "name": "PyCLIDE Contributors"
+  },
+  "keywords": ["python", "ide", "refactoring", "semantic-analysis", "jedi", "rope"],
+  "homepage": "https://github.com/yourusername/pyclide-plugin",
+  "license": "MIT"
+}
