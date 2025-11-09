@@ -1,21 +1,51 @@
-# PyCLIDE: Python Command-Line IDE
+# PyCLIDE
 
-**High-performance Python semantic analysis and refactoring** with client-server architecture for 10-20x faster repeated operations.
+High-performance Python semantic analysis server for Claude Code. Provides IDE-quality code navigation and refactoring using Jedi and Rope with persistent hot cache.
 
-Provides IDE-quality code analysis using Jedi (navigation) and Rope (refactoring) with **persistent hot cache** for instant responses.
+## Why a Claude Code Skill?
+
+PyCLIDE is built as a **Claude Code skill** rather than an MCP server for optimal efficiency:
+
+**Token Window Efficiency**
+MCP servers load their context into every Claude conversation, consuming precious token window space. Skills load **only when needed** - Claude scans available skills and activates PyCLIDE only when you're working with Python code.
+
+**On-Demand Loading**
+When you ask Claude to "find all references to this function", Claude:
+1. Identifies this is a Python analysis task
+2. Loads the PyCLIDE skill instructions
+3. Executes the skill's client code
+4. Returns to normal operation
+
+The skill context is released when not in use, keeping your token window available for your code and conversation.
+
+**Deterministic Operations**
+Skills can include executable code for tasks where traditional programming is more reliable than token generation. PyCLIDE leverages this for precise AST analysis and refactoring operations.
+
+Learn more about skills: [Claude Code Skills Announcement](https://www.claude.com/blog/skills)
+
+## Features
+
+**Navigation (Jedi-based)**
+- Go to definition - Jump to where symbols are defined
+- Find references - Find all usages of a symbol
+- Hover information - Get type, signature, and docstrings
+
+**Refactoring (Rope-based)**
+- Semantic rename - Rename with automatic import updates
+- Extract method/variable - Refactor code into reusable components
+- Move symbols - Reorganize code between files
+- Organize imports - Clean up and normalize imports
+- Semantic occurrences - Find references within rename scope
+
+**Utilities**
+- List symbols - Quick overview of classes/functions (AST-based)
+- AST codemods - Mass transformations with ast-grep (optional)
+
+**Note:** For text search, use Claude Code's native Grep tool (built-in ripgrep integration).
 
 ## Architecture
 
-PyCLIDE uses a **client-server architecture** for optimal performance:
-
-- **Client**: Lightweight Python script (stdlib only) bundled with Claude Code skill
-- **Server**: Background process with hot RAM cache (auto-downloaded from GitHub via uvx)
-- **Performance**:
-  - First query: ~800ms (cold start)
-  - Subsequent queries: **20-50ms** (hot cache)
-  - **14x faster** than one-shot CLI for repeated operations
-
-### How It Works
+PyCLIDE uses a **client-server architecture** for fast repeated operations:
 
 ```
 ┌─────────────────┐
@@ -44,31 +74,19 @@ PyCLIDE uses a **client-server architecture** for optimal performance:
 └─────────────────────────────────────┘
 ```
 
-**Key features**:
+**Components:**
+
+- **Client** (`pyclide_client.py`): Lightweight script (stdlib only, ~400 lines) bundled with the skill
+- **Server** (`pyclide-server`): Background process with hot RAM cache, auto-downloaded from GitHub
+- **Registry** (`~/.pyclide/servers.json`): Tracks running servers per workspace
+
+**Key Capabilities:**
+
 - One server per workspace (isolated environments)
 - Auto-start on first use (transparent to user)
 - File watcher maintains cache consistency
 - Auto-shutdown after 30 minutes inactivity
-
-## Features
-
-### Navigation (Jedi-based)
-- **Go to definition** - Jump to where symbols are defined
-- **Find references** - Find all usages of a symbol
-- **Hover information** - Get type, signature, and docstrings
-
-### Refactoring (Rope-based)
-- **Semantic rename** - Rename with automatic import updates
-- **Extract method/variable** - Refactor code into reusable components
-- **Move symbols** - Reorganize code between files
-- **Organize imports** - Clean up and normalize imports
-- **Semantic occurrences** - Find references within rename scope
-
-### Utilities
-- **List symbols** - Quick overview of classes/functions (AST-based, fast)
-- **AST codemods** - Mass transformations with ast-grep (optional)
-
-**Note:** For text search, use Claude Code's native Grep tool (built-in ripgrep integration).
+- Dynamic port allocation (5000-6000 range)
 
 ## Installation
 
@@ -77,6 +95,7 @@ PyCLIDE uses a **client-server architecture** for optimal performance:
 **Required:**
 - Python 3.8+ (already required for Claude Code)
 - `uv` package manager: `pip install uv`
+- Git (for server download)
 
 **Optional:**
 - `ast-grep` for AST transformations: `cargo install ast-grep`
@@ -102,12 +121,12 @@ When Claude Code first invokes PyCLIDE:
 1. **Client executes**: `python ~/.claude/skills/pyclide/pyclide_client.py defs app.py 10 5`
 2. **Client detects no server** for workspace
 3. **Client runs**: `uvx --from git+https://github.com/GiampaoloGabba/pyclide pyclide-server --root /workspace --port 5001 --daemon`
-4. **uvx downloads** `pyclide-server` from GitHub (first time only, ~5s)
+4. **uvx downloads** server from GitHub (first time only, ~3s)
 5. **Server starts** in background
 6. **Client sends HTTP request** to server
 7. **Result returned** to Claude Code
 
-Subsequent invocations use the running server (**20-50ms response time**).
+Subsequent invocations use the running server for instant responses.
 
 ## Usage
 
@@ -147,62 +166,30 @@ Stop all servers:
 curl -X POST http://127.0.0.1:PORT/shutdown
 ```
 
-## Documentation
-
-- **[SKILL.md](skills/pyclide/SKILL.md)** - Concise skill reference for Claude
-- **[REFERENCE.md](skills/pyclide/REFERENCE.md)** - Complete command documentation
-- **[PYCLIDE_SERVER_PLAN.md](docs/PYCLIDE_SERVER_PLAN.md)** - Server architecture details
-- **[TESTING_PLAN.md](docs/TESTING_PLAN.md)** - Comprehensive test plan
-
-## Project Structure
-
-```
-python-semantic-ide/
-├── pyclide.py                    # Original CLI (maintained for compatibility)
-├── pyclide_server/               # Server package (published to PyPI)
-│   ├── __init__.py
-│   ├── __main__.py               # Entry point: pyclide-server
-│   ├── server.py                 # FastAPI server with hot cache
-│   ├── rope_engine.py            # Rope integration
-│   ├── jedi_helpers.py           # Jedi integration
-│   ├── file_watcher.py           # Cache invalidation
-│   ├── health.py                 # Auto-shutdown monitoring
-│   └── models.py                 # Pydantic request/response models
-├── skills/pyclide/               # Claude Code skill
-│   ├── SKILL.md                  # Skill definition
-│   ├── REFERENCE.md              # Command reference
-│   └── pyclide_client.py         # Client (~400 lines, stdlib only)
-├── tests/                        # Test suite
-│   ├── unit/
-│   ├── integration/
-│   └── e2e/
-├── docs/                         # Documentation
-│   ├── PYCLIDE_SERVER_PLAN.md
-│   └── TESTING_PLAN.md
-├── pyproject.toml                # PyPI package config
-└── README.md                     # This file
-```
-
 ## Performance
 
-| Scenario | One-Shot CLI | Server (Hot Cache) | Improvement |
-|----------|--------------|-------------------|-------------|
-| First query | 800ms | 800ms | - |
-| Second query | 700ms | **20-50ms** | **14-35x** |
-| 10 queries | 7000ms | **500ms** | **14x** |
-| Find refs (10k LOC) | 1500ms | **100-200ms** | **7-15x** |
+**Response Times:**
+- First query: ~800ms (cold start - server initialization)
+- Subsequent queries: **20-50ms** (hot cache)
+- Find references in 10k LOC project: **100-200ms**
 
-**Memory footprint**: ~50-120MB per workspace (includes Python runtime, Jedi, Rope, caches)
+**Why Fast:**
+- **Hot RAM cache**: Jedi and Rope analysis results stay in memory
+- **File watcher**: Cache invalidation only on file changes
+- **Persistent process**: No Python interpreter startup overhead per request
+
+**Memory Footprint:**
+~50-120MB per workspace (includes Python runtime, Jedi, Rope, AST caches)
 
 ## Development
 
 ### Running Server Locally
 
-For development/testing without uvx:
+For development/testing:
 
 ```bash
 # Install dependencies
-pip install -e .  # Installs from pyproject.toml
+pip install -e .
 
 # Start server manually
 python -m pyclide_server --root . --port 5555
@@ -237,22 +224,12 @@ pytest --cov=pyclide_server --cov-report=html
 2. Test locally: `python -m pyclide_server --root . --port 5555`
 3. Run tests: `pytest tests/`
 4. Update version in `pyproject.toml` and `pyclide_server/__init__.py`
+5. Push to GitHub (instant deployment)
 
 **Client code** (`skills/pyclide/pyclide_client.py`):
 1. Edit client (keep stdlib-only!)
 2. Test: `python skills/pyclide/pyclide_client.py defs ...`
 3. Update `SKILL.md` if command interface changes
-
-**Original CLI** (`pyclide.py`):
-- Maintained for backward compatibility
-- Not used by skill (uses client-server instead)
-
-## Distribution
-
-### As Claude Code Skill
-
-1. Copy `skills/pyclide/` to user's `~/.claude/skills/pyclide`
-2. Server auto-downloads from GitHub on first use
 
 ### Deployment
 
@@ -269,29 +246,17 @@ pip install -e .
 python -m pyclide_server --root . --port 5555
 ```
 
-### Alternative: Local Development Mode
-
-For testing without GitHub, modify the client to use local installation:
-```python
-# In pyclide_client.py, replace:
-# cmd = ["uvx", "--from", GITHUB_REPO, "pyclide-server", ...]
-# with:
-# cmd = ["python", "-m", "pyclide_server", ...]
-```
-
 ## Known Limitations
 
 ### Server-Specific
 
 **File Watcher**:
-- Requires `watchdog` library (auto-installed with server)
 - May miss changes to files ignored by .gitignore (by design)
 - Debouncing (100ms) may delay cache invalidation slightly
 
 **Auto-Shutdown**:
 - Server shuts down after 30 minutes inactivity
 - Next query will restart server (~800ms first request)
-- Can be configured via environment variables (future)
 
 **Port Allocation**:
 - Uses ports 5000-6000
@@ -334,6 +299,10 @@ pip install uv
 ```
 
 Or visit: https://docs.astral.sh/uv/
+
+### "git not found"
+
+Install Git from: https://git-scm.com/downloads
 
 ### Server Won't Start
 
@@ -401,17 +370,19 @@ curl -X POST http://127.0.0.1:PORT/shutdown
 
 Or wait 30 minutes for auto-shutdown.
 
-### "Module not found" Errors
+### GitHub Connection Issues
 
-Server dependencies missing:
+If server fails to download:
+
 ```bash
-# Install from GitHub
-uvx --from git+https://github.com/GiampaoloGabba/pyclide pyclide-server --help
+# Check internet connection
+ping github.com
 
-# Or install from source
-git clone https://github.com/GiampaoloGabba/pyclide
-cd pyclide
-pip install -e .
+# Verify GitHub access
+git ls-remote https://github.com/GiampaoloGabba/pyclide
+
+# Clear uvx cache and retry
+rm -rf ~/.local/share/uv/cache/
 ```
 
 ## Security Notes
@@ -422,6 +393,11 @@ pip install -e .
 - File watcher respects .gitignore (won't analyze secrets)
 
 **DO NOT expose server to network** - it's designed for local-only use.
+
+## Documentation
+
+- **[SKILL.md](skills/pyclide/SKILL.md)** - Concise skill reference for Claude
+- **[REFERENCE.md](skills/pyclide/REFERENCE.md)** - Complete command documentation
 
 ## License
 
@@ -437,8 +413,6 @@ Contributions welcome! Please:
 4. Run test suite: `pytest`
 5. Submit a pull request
 
-See [TESTING_PLAN.md](docs/TESTING_PLAN.md) for test guidelines.
-
 ## Credits
 
 - **Jedi** - Python static analysis and code completion
@@ -446,15 +420,7 @@ See [TESTING_PLAN.md](docs/TESTING_PLAN.md) for test guidelines.
 - **FastAPI** - Modern async web framework
 - **Uvicorn** - Lightning-fast ASGI server
 - **Watchdog** - Cross-platform filesystem monitoring
-- **Typer** - Modern CLI framework (original CLI)
-
-## Support
-
-- **Issues**: GitHub Issues
-- **Documentation**: See `docs/` directory
-- **Architecture**: [PYCLIDE_SERVER_PLAN.md](docs/PYCLIDE_SERVER_PLAN.md)
-- **Testing**: [TESTING_PLAN.md](docs/TESTING_PLAN.md)
 
 ---
 
-**Built for Claude Code** | High-performance Python semantic analysis with persistent hot cache
+**Built for Claude Code** - High-performance Python semantic analysis with persistent hot cache
