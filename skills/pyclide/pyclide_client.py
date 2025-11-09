@@ -4,13 +4,20 @@ PyCLIDE Client - Single-file script for Claude Code skill.
 
 Zero external dependencies (stdlib only).
 Manages server lifecycle and routes commands to pyclide-server.
+Also provides local-only features (list symbols, ast-grep codemod).
 
-Usage:
+Server Commands (Jedi/Rope via pyclide-server):
     python pyclide_client.py defs app.py 10 5 --root .
     python pyclide_client.py rename app.py 10 5 new_name --root .
+
+Local Commands (No server required):
+    python pyclide_client.py list . --root .
+    python pyclide_client.py codemod rule.yml --root . --apply
 """
 
+import ast
 import json
+import shutil
 import subprocess
 import sys
 import socket
@@ -158,10 +165,11 @@ def start_server_via_uvx(workspace_root: str) -> Dict[str, Any]:
 
     try:
         if sys.platform == "win32":
-            # Windows: detached process
+            # Windows: detached process without console window
+            CREATE_NO_WINDOW = 0x08000000  # Windows constant
             subprocess.Popen(
                 cmd,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
@@ -335,6 +343,105 @@ def handle_occurrences(args: List[str], root: str) -> None:
 
 
 # ============================================================================
+# Local Commands (No Server Required)
+# ============================================================================
+
+def handle_list(args: List[str], root: str) -> None:
+    """Handle 'list' command (list top-level symbols via AST parsing)."""
+    if len(args) < 1:
+        print("Usage: pyclide_client.py list <file_or_dir> [--root <root>]", file=sys.stderr)
+        sys.exit(1)
+
+    path_arg = args[0]
+    rootp = Path(root).resolve()
+    target = (rootp / path_arg).resolve()
+
+    if not target.exists():
+        print(f"Error: Path not found: {target}", file=sys.stderr)
+        sys.exit(1)
+
+    # Collect Python files
+    files = [target] if target.is_file() else list(target.rglob("*.py"))
+
+    symbols = []
+    for file in files:
+        try:
+            tree = ast.parse(file.read_text(encoding="utf-8"))
+        except Exception:
+            continue  # Skip files with syntax errors
+
+        # Extract top-level classes and functions
+        for node in tree.body:
+            rel_path = str(file.relative_to(rootp)) if file.is_relative_to(rootp) else str(file)
+
+            if isinstance(node, ast.ClassDef):
+                symbols.append({
+                    "path": rel_path,
+                    "kind": "class",
+                    "name": node.name,
+                    "line": node.lineno
+                })
+            elif isinstance(node, ast.FunctionDef):
+                symbols.append({
+                    "path": rel_path,
+                    "kind": "function",
+                    "name": node.name,
+                    "line": node.lineno
+                })
+
+    print(json.dumps(symbols, indent=2))
+
+
+def handle_codemod(args: List[str], root: str) -> None:
+    """Handle 'codemod' command (AST transformations via ast-grep)."""
+    if len(args) < 1:
+        print("Usage: pyclide_client.py codemod <rule.yml> [--root <root>] [--apply]", file=sys.stderr)
+        sys.exit(1)
+
+    rule_file = args[0]
+    apply_changes = "--apply" in sys.argv
+
+    # Check if ast-grep is available
+    if not shutil.which("ast-grep"):
+        print("Error: ast-grep not found in PATH", file=sys.stderr)
+        print("Install with: npm install -g @ast-grep/cli", file=sys.stderr)
+        print("or visit: https://ast-grep.github.io/", file=sys.stderr)
+        sys.exit(1)
+
+    rootp = Path(root).resolve()
+    cmd = ["ast-grep", "-c", rule_file, str(rootp)]
+
+    if apply_changes:
+        cmd.append("--rewrite")
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+        # ast-grep returns 0 with matches, 2 with no matches - both are success
+        if result.returncode not in (0, 2):
+            print(f"Error: ast-grep failed with code {result.returncode}", file=sys.stderr)
+            if result.stderr:
+                print(result.stderr, file=sys.stderr)
+            sys.exit(result.returncode)
+
+        # Output result as JSON
+        output = {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+            "applied": apply_changes
+        }
+        print(json.dumps(output, indent=2))
+
+    except subprocess.TimeoutExpired:
+        print("Error: ast-grep command timed out after 30 seconds", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error running ast-grep: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+# ============================================================================
 # CLI Entry Point
 # ============================================================================
 
@@ -342,12 +449,15 @@ def main() -> None:
     """Main entry point for pyclide_client."""
     if len(sys.argv) < 2:
         print("Usage: python pyclide_client.py <command> [args...] [--root <root>]", file=sys.stderr)
-        print("\nCommands:", file=sys.stderr)
+        print("\nServer Commands (Jedi/Rope):", file=sys.stderr)
         print("  defs <file> <line> <col>           - Go to definition", file=sys.stderr)
         print("  refs <file> <line> <col>           - Find references", file=sys.stderr)
         print("  hover <file> <line> <col>          - Symbol information", file=sys.stderr)
         print("  rename <file> <line> <col> <name>  - Semantic rename", file=sys.stderr)
         print("  occurrences <file> <line> <col>    - Semantic occurrences", file=sys.stderr)
+        print("\nLocal Commands (No Server):", file=sys.stderr)
+        print("  list <file_or_dir>                 - List top-level symbols (AST)", file=sys.stderr)
+        print("  codemod <rule.yml> [--apply]       - AST transformations (ast-grep)", file=sys.stderr)
         sys.exit(1)
 
     command = sys.argv[1]
@@ -367,11 +477,15 @@ def main() -> None:
 
     # Route command
     command_handlers = {
+        # Server commands
         "defs": handle_defs,
         "refs": handle_refs,
         "hover": handle_hover,
         "rename": handle_rename,
         "occurrences": handle_occurrences,
+        # Local commands (no server)
+        "list": handle_list,
+        "codemod": handle_codemod,
     }
 
     handler = command_handlers.get(command)
