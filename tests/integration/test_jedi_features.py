@@ -56,12 +56,6 @@ class TestJediFeatures:
         locations = data["locations"]
         assert "sample_usage.py" in locations[0]["file"] or "sample_module.py" in locations[0]["file"]
 
-    @pytest.mark.skip(reason="No direct /infer endpoint - use /hover instead")
-    def test_jedi_infer_variable_type(self):
-        """Test type inference for variables."""
-        # TODO: This could be tested via /hover endpoint
-        pass
-
     def test_jedi_get_references(self, httpx_client, temp_workspace):
         """Test finding references to a function via /refs endpoint."""
         # Line 4, column 5 is on the "hello_world" function definition
@@ -132,10 +126,3 @@ class TestJediFeatures:
         assert data["signature"] is not None or (
             data["docstring"] is not None and "add" in data["docstring"]
         )
-
-    @pytest.mark.skip(reason="No /complete endpoint in server yet")
-    def test_jedi_complete(self):
-        """Test code completion."""
-        # TODO: Add /complete endpoint to server
-        # Should complete methods after "calc."
-        pass

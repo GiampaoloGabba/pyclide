@@ -360,25 +360,3 @@ result = Builder().add(1).add(2).build()
             data = response.json()
             # Should find definition and calls in chain
             assert_locations_response(data, min_count=1)
-
-
-@pytest.mark.integration
-@pytest.mark.jedi
-@pytest.mark.skip(reason="Server does not have /complete endpoint")
-class TestJediCompletionNotAvailable:
-    """Completion tests - endpoint not available in current server."""
-
-    def test_completion_endpoint_not_implemented(self):
-        """Document that completion is not yet implemented."""
-        pass
-
-
-@pytest.mark.integration
-@pytest.mark.jedi
-@pytest.mark.skip(reason="Server does not have /infer endpoint - use /hover instead")
-class TestJediInferNotAvailable:
-    """Type inference tests - endpoint not available in current server."""
-
-    def test_infer_endpoint_not_implemented(self):
-        """Document that direct infer is not implemented - use /hover."""
-        pass

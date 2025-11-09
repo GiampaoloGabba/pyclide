@@ -1,127 +1,205 @@
 # PyCLIDE Test Suite
 
-This directory contains automated tests for PyCLIDE.
+Comprehensive test suite for the PyCLIDE client-server architecture.
 
-## Structure
+## Quick Start
+
+```bash
+# Run all core tests (recommended)
+pytest tests/ -m "not e2e"
+
+# Run all tests including E2E
+pytest tests/
+
+# Run with coverage
+pytest tests/ -m "not e2e" --cov=pyclide_server --cov-report=html
+```
+
+## Test Organization
+
+The test suite is organized by scope and purpose:
 
 ```
 tests/
-├── __init__.py              # Test package initialization
-├── README.md                # This file
-├── fixtures/                # Test fixtures (sample Python files)
-│   ├── sample_module.py     # Sample module with classes and functions
-│   └── sample_usage.py      # Sample file that imports sample_module
-├── test_jedi_features.py    # Tests for Jedi integration (goto, infer, refs, hover)
-├── test_rope_features.py    # Tests for Rope integration (rename, occurrences, extract)
-└── test_utilities.py        # Tests for utility functions
+├── unit/          # Fast, isolated unit tests (models, helpers, watchers)
+├── integration/   # Server API integration tests (endpoints, workflows, edge cases)
+├── client/        # Client-side local feature tests (list, codemod)
+├── e2e/          # End-to-end tests (full client-server stack, optional)
+├── fixtures/      # Sample Python files for testing
+└── conftest.py    # Shared pytest fixtures and configuration
 ```
+
+### Test Types
+
+**Unit Tests** (~31 tests, <1s)
+- Pydantic model validation
+- Jedi helper functions
+- File watcher behavior
+- No HTTP, no server startup
+
+**Integration Tests** (~168 tests, ~15s)
+- Server API endpoints
+- Cache invalidation
+- Error handling
+- Multi-file refactoring workflows
+- Real-world framework patterns (Django, Flask, FastAPI)
+
+**Client Tests** (~12 tests, <1s)
+- Local commands (list, codemod)
+- AST-based symbol listing
+- ast-grep transformations
+
+**E2E Tests** (~15 tests, ~25s, optional)
+- Full client-server communication
+- Server lifecycle management
+- Registry handling
+- Real uvx server startup
 
 ## Running Tests
 
-### Run all tests
+### By Type
 ```bash
-pytest
+# Fast tests only (unit + integration + client)
+pytest -m "not e2e"
+
+# Only E2E tests
+pytest -m e2e
+
+# Only unit tests
+pytest -m unit
+
+# Only integration tests
+pytest -m integration
 ```
 
-### Run specific test file
+### By Feature
 ```bash
-pytest tests/test_jedi_features.py
-```
-
-### Run specific test class
-```bash
-pytest tests/test_jedi_features.py::TestJediFeatures
-```
-
-### Run specific test
-```bash
-pytest tests/test_jedi_features.py::TestJediFeatures::test_jedi_goto_function_definition
-```
-
-### Run tests with markers
-```bash
-# Run only Jedi tests
+# Jedi integration tests
 pytest -m jedi
 
-# Run only Rope tests
+# Rope refactoring tests
 pytest -m rope
 
-# Run only utility tests
-pytest -m utility
+# Client-specific tests
+pytest -m client
 ```
 
-### Run with verbose output
+### Specific Tests
 ```bash
-pytest -v
+# Run specific file
+pytest tests/integration/test_server_api.py
+
+# Run specific class
+pytest tests/integration/test_server_api.py::TestServerAPI
+
+# Run specific test
+pytest tests/integration/test_server_api.py::TestServerAPI::test_health_endpoint
+
+# Verbose output with traceback
+pytest tests/integration/ -v --tb=short
 ```
 
-### Run with coverage (requires pytest-cov)
-```bash
-pytest --cov=pyclide --cov-report=html
-```
+## Available Markers
 
-## Test Categories
+- `unit` - Fast isolated unit tests
+- `integration` - Server API integration tests
+- `client` - Client local feature tests
+- `e2e` - End-to-end tests (optional, slower)
+- `jedi` - Jedi navigation features
+- `rope` - Rope refactoring features
+- `slow` - Tests taking >1 second
+- `asyncio` - Async tests (requires pytest-asyncio)
 
-### Jedi Tests (`test_jedi_features.py`)
-Tests for static analysis features powered by Jedi:
-- `test_jedi_goto_*` - Tests for "go to definition" functionality
-- `test_jedi_infer_*` - Tests for type inference
-- `test_jedi_get_references` - Tests for finding references
-- `test_jedi_hover_*` - Tests for hover information (docstrings, signatures)
-- `test_jedi_complete` - Tests for code completion
+## Key Fixtures
 
-### Rope Tests (`test_rope_features.py`)
-Tests for refactoring features powered by Rope:
-- `test_rope_occurrences_*` - Tests for finding semantic occurrences
-- `test_rope_rename_*` - Tests for rename refactoring
-- `test_rope_extract_*` - Tests for extract method/variable refactoring
-- `test_rope_organize_imports` - Tests for import organization
+**Server Testing:**
+- `temp_workspace` - Temporary directory with fixture files
+- `test_server` - PyCLIDEServer instance with TestClient
+- `httpx_client` - HTTP client for making API requests
 
-### Utility Tests (`test_utilities.py`)
-Tests for utility functions:
-- `test_rel_to_*` - Tests for relative path calculation
-- `test_byte_offset_*` - Tests for line/column to byte offset conversion
-- `test_list_globals_*` - Tests for AST-based symbol listing
-- `test_simple_text_search` - Tests for text-based search
+**E2E Testing:**
+- `e2e_workspace` - Isolated workspace for E2E tests
+- `temp_registry` - Temporary server registry with auto-cleanup
 
-## Fixtures
+See `conftest.py` for complete fixture definitions.
 
-The `fixtures/` directory contains sample Python files used for testing:
+## Test Coverage
 
-- **sample_module.py**: A module with functions, classes, and docstrings
-- **sample_usage.py**: A file that imports and uses sample_module
+Current coverage: **~88%** (211/226 tests passing)
 
-These fixtures are designed to test various PyCLIDE features in realistic scenarios.
+**Core functionality:** ✅ 100% passing
+- Server endpoints (Jedi/Rope integration)
+- Cache management
+- Error handling
+- Client local features
+
+**Skipped tests:**
+- 8 HealthMonitor tests (require pytest-asyncio)
+- 5 endpoint tests (features not yet implemented)
 
 ## Requirements
 
-To run the tests, you need:
-- pytest
-- jedi (for Jedi tests)
-- rope (for Rope tests)
-
-Install with:
+**Core dependencies:**
 ```bash
-pip install pytest jedi rope
+pip install pytest fastapi jedi rope
 ```
 
-Optional:
+**Optional:**
 ```bash
-pip install pytest-cov  # For coverage reports
+pip install pytest-cov        # Coverage reports
+pip install pytest-asyncio    # Async tests
+pip install ast-grep          # Codemod tests
 ```
 
-## Adding New Tests
+## Writing New Tests
 
-When adding new tests:
+For coding agents, see [`CLAUDE.md`](./CLAUDE.md) for detailed conventions.
 
-1. Follow the existing naming conventions (`test_*.py`, `Test*` classes, `test_*` methods)
-2. Add appropriate docstrings explaining what the test does
-3. Use fixtures for shared setup code
-4. Add markers if the test fits a category
-5. Keep tests focused and independent
+For humans:
+1. Choose test type: unit, integration, client, or e2e
+2. Use existing patterns in that directory
+3. Add appropriate markers
+4. Use shared fixtures from `conftest.py`
+5. Follow naming: `test_*.py`, `TestClassName`, `test_method_name`
 
-## Notes
+## CI/CD
 
-- Tests use temporary directories when testing file modifications (Rope features)
-- Fixtures are copied to temp directories to avoid modifying the originals
-- Tests are designed to be fast and independent (no shared state between tests)
+Recommended CI configuration:
+```yaml
+# Fast tests for PR checks
+pytest tests/ -m "not e2e" --cov --cov-report=xml
+
+# Full tests for merge
+pytest tests/ --cov --cov-report=xml
+```
+
+E2E tests can be optional in CI due to:
+- Longer execution time (~25s)
+- Real server startup requirements
+- Potential platform-specific issues
+
+## Troubleshooting
+
+**Tests fail with "Server communication failed":**
+- E2E tests require `uvx` installed
+- Check if ports 5000-5100 are available
+- Run with `-v` for detailed output
+
+**Import errors:**
+- Ensure pytest runs from project root
+- Check that dependencies are installed
+- Verify virtual environment is activated
+
+**Slow test execution:**
+- Skip E2E tests: `pytest -m "not e2e"`
+- Run specific test categories
+- Use `-n auto` with pytest-xdist for parallel execution
+
+## Architecture Notes
+
+This test suite validates the **client-server architecture**:
+- **Server** (pyclide-server): FastAPI server with Jedi/Rope integration
+- **Client** (pyclide_client.py): Python client managing server lifecycle
+- **Local features**: AST parsing and ast-grep run client-side
+
+Integration tests use FastAPI's `TestClient` for synchronous HTTP testing without starting real servers. E2E tests use the actual client and spawn real servers via `uvx`.
