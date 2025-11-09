@@ -77,3 +77,44 @@ fabric.properties
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
 
+### PyCLIDE Plugin
+
+# Standalone binaries (large files - users should build locally)
+bin/pyclide*
+!bin/.gitkeep
+
+# PyInstaller build artifacts
+build/work/
+build/*.spec
+build/__pycache__/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+dist/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Rope project settings
+.ropeproject
+
+# Testing
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
