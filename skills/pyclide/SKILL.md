@@ -14,7 +14,7 @@ description: >
 
 Semantic code navigation and refactoring for Python using Jedi (navigation) + Rope (refactoring).
 
-**Standalone binary** - no pip dependencies required. All commands output JSON by default.
+**Client-server architecture** - Client auto-starts server via uvx, server caches Jedi/Rope state for fast responses.
 
 ## When to Use
 
@@ -29,14 +29,16 @@ Semantic code navigation and refactoring for Python using Jedi (navigation) + Ro
 
 ## Command Syntax
 
-All commands use: `pyclide-wrapper.sh <command> <args> [--root .] [--force]`
+All commands use: `python pyclide_client.py <command> <args> [--root .]`
 
-### Navigation Commands (Jedi)
+**Server auto-starts** on first request (via uvx), persists cache, auto-shuts down after 30min inactivity.
+
+### Navigation Commands (Jedi - Fast)
 
 **`defs <file> <line> <col>`**
 - Jump to symbol definition
-- Example: `pyclide-wrapper.sh defs app.py 10 5 --root .`
-- Returns: `[{"path": "...", "line": N, "column": N, "name": "...", "type": "class|function|..."}]`
+- Example: `python pyclide_client.py defs app.py 10 5 --root .`
+- Returns: `{"locations": [{"file": "...", "line": N, "column": N}]}`
 
 **`refs <file> <line> <col>`**
 - Find all symbol references (broad search)
@@ -44,27 +46,26 @@ All commands use: `pyclide-wrapper.sh <command> <args> [--root .] [--force]`
 
 **`hover <file> <line> <col>`**
 - Get symbol info: type, signature, docstring
-- Returns: `[{"name": "...", "type": "...", "signature": "...", "docstring": "..."}]`
+- Returns: `{"signature": "...", "docstring": "...", "type": "..."}`
 
-### Refactoring Commands (Rope)
+### Refactoring Commands (Rope - Semantic)
 
 **`occurrences <file> <line> <col>`**
 - Find semantic occurrences (rename scope preview)
 - More conservative than `refs`, safe for renaming
 - Returns: List of locations that will be renamed
 
-**`rename <file> <line> <col> <new-name> [--force]`**
+**`rename <file> <line> <col> <new-name>`**
 - Semantic rename with automatic import updates
-- Preview mode (default): shows diff, prompts confirmation
-- `--force`: apply immediately without confirmation
+- Returns patches: `{"patches": {"file.py": "new_content", ...}}`
 - Updates: symbol definition, references, imports
 
-**`extract-method <file> <start-line> <end-line> <method-name> [--force]`**
+**`extract-method <file> <start-line> <end-line> <method-name>`**
 - Extract code block into new method
 - Automatically handles parameters and return values
-- Example: `pyclide-wrapper.sh extract-method app.py 50 60 validate_input --root . --force`
+- Example: `python pyclide_client.py extract-method app.py 50 60 validate_input --root .`
 
-**`extract-var <file> <start-line> <end-line> <var-name> [--start-col N] [--end-col N] [--force]`**
+**`extract-var <file> <start-line> <end-line> <var-name> [--start-col N] [--end-col N]`**
 - Extract expression into new variable
 - Column flags for precise selection:
   - No columns: extract entire line(s)
@@ -72,27 +73,24 @@ All commands use: `pyclide-wrapper.sh <command> <args> [--root .] [--force]`
   - `--end-col` only: from start of line to column
   - Both: precise range selection
 
-**`move <source-spec> <target-file> [--force]`**
-- Move symbol or module, update imports
-- Symbol: `utils.py::ClassName` or `utils.py::function_name`
-- Module: `old/path.py` → moves entire file
-- Example: `pyclide-wrapper.sh move utils.py::Helper billing/helpers.py --root . --force`
+**`move <file> <line> <col> <target-file>`**
+- Move symbol to target file, update imports
+- Example: `python pyclide_client.py move utils.py 10 5 billing/helpers.py --root .`
 
-**`organize-imports <path> [--froms-to-imports] [--force]`**
+**`organize-imports <path>`**
 - Normalize imports in file or directory
 - Sorts, groups (stdlib/third-party/local), removes duplicates
-- `--froms-to-imports`: convert `from X import Y` to `import X`
-- Example: `pyclide-wrapper.sh organize-imports src --root . --force`
+- Example: `python pyclide_client.py organize-imports src --root .`
 
-### Utility Commands
+### Local Commands (No Server)
 
 **`list <path>`**
-- List top-level classes/functions (AST-based, very fast)
+- List top-level classes/functions (AST-based, very fast, runs locally)
 - Path: file or directory
 - Returns: `[{"path": "...", "kind": "class|function", "name": "...", "line": N}]`
 
 **`codemod <rule-file.yml> [--apply]`**
-- AST-based transformations using ast-grep
+- AST-based transformations using ast-grep (runs locally)
 - Requires `ast-grep` installed separately
 - Default: dry-run preview
 - `--apply`: apply transformations
@@ -100,47 +98,55 @@ All commands use: `pyclide-wrapper.sh <command> <args> [--root .] [--force]`
 ## Essential Flags
 
 - `--root <path>`: Project root for cross-file analysis (default: `.`)
-- `--force`: Skip confirmation prompts (mutating commands)
-- `--json` / `--no-json`: Output format (default: `--json`)
+- All commands output JSON by default
 
 ## Common Agent Patterns
 
 **Safe Rename Workflow:**
 ```bash
 # 1. Preview scope
-pyclide-wrapper.sh occurrences file.py 20 5 --root .
+python pyclide_client.py occurrences file.py 20 5 --root .
 
-# 2. Execute rename
-pyclide-wrapper.sh rename file.py 20 5 new_name --root . --force
+# 2. Execute rename (apply patches to disk yourself)
+python pyclide_client.py rename file.py 20 5 new_name --root .
 ```
 
 **Refactoring Workflow:**
 ```bash
 # 1. Understand symbol
-pyclide-wrapper.sh hover app.py 42 10 --root .
+python pyclide_client.py hover app.py 42 10 --root .
 
 # 2. Extract method
-pyclide-wrapper.sh extract-method app.py 50 75 validate_input --root . --force
+python pyclide_client.py extract-method app.py 50 75 validate_input --root .
 
 # 3. Clean up
-pyclide-wrapper.sh organize-imports . --root . --force
+python pyclide_client.py organize-imports . --root .
 ```
 
 **Code Reorganization:**
 ```bash
 # 1. Move symbol
-pyclide-wrapper.sh move utils.py::helper_func lib/helpers.py --root . --force
+python pyclide_client.py move utils.py 15 8 lib/helpers.py --root .
 
 # 2. Organize imports
-pyclide-wrapper.sh organize-imports . --root . --force
+python pyclide_client.py organize-imports . --root .
 ```
 
 ## Key Details
 
-- **Output**: All commands return JSON arrays/objects by default
-- **Errors**: Exit code 2 on validation errors (missing deps, file not found)
-- **Patches**: Mutating commands show diffs (or JSON patches with `--json`)
-- **Platform**: Wrapper auto-selects binary (Windows: `.exe`, Linux: `-linux`, macOS: `-macos`)
+- **Architecture**: Client → HTTP → Server (auto-started via uvx)
+- **Server**: Caches Jedi scripts + Rope project, auto-shutdown after 30min inactivity
+- **Output**: All commands return JSON objects/arrays
+- **Patches**: Refactoring commands return `{"patches": {path: content}}` - YOU apply to disk
+- **Registry**: Servers tracked in `~/.pyclide/servers.json`, auto-cleanup on restart
+- **Requirements**: Python 3.8+, uvx (for server auto-start)
+
+## Performance Tips
+
+- First request per workspace: ~2-3s (server startup + cache building)
+- Subsequent requests: <100ms (cached)
+- Server persists across multiple requests (reuse cache)
+- FileWatcher auto-invalidates cache on file changes
 
 ## See Also
 
