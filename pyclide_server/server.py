@@ -183,6 +183,11 @@ class PyCLIDEServer:
                         for loc in locations
                     ]
                 )
+            except ValueError as e:
+                # Jedi raises ValueError for invalid coordinates (e.g., empty lines)
+                # Return empty results instead of 500 error
+                logger.debug(f"Invalid position in goto_definition: {e}")
+                return LocationsResponse(locations=[])
             except Exception as e:
                 logger.error(f"Error in goto_definition: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -207,6 +212,11 @@ class PyCLIDEServer:
                         for loc in locations
                     ]
                 )
+            except ValueError as e:
+                # Jedi raises ValueError for invalid coordinates (e.g., empty lines)
+                # Return empty results instead of 500 error
+                logger.debug(f"Invalid position in find_references: {e}")
+                return LocationsResponse(locations=[])
             except Exception as e:
                 logger.error(f"Error in find_references: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -238,6 +248,11 @@ class PyCLIDEServer:
                     info.docstring = getattr(result, 'docstring', lambda: None)()
 
                 return info
+            except ValueError as e:
+                # Jedi raises ValueError for invalid coordinates (e.g., empty lines)
+                # Return empty info instead of 500 error
+                logger.debug(f"Invalid position in hover_info: {e}")
+                return HoverInfo()
             except Exception as e:
                 logger.error(f"Error in hover_info: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
