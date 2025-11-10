@@ -95,20 +95,30 @@ All commands use: `python pyclide_client.py <command> <args> [--root .]`
 - Default: dry-run preview
 - `--apply`: apply transformations
 
-## Essential Flags
+## Flags and Output
 
-- `--root <path>`: Project root for cross-file analysis (default: `.`)
-- All commands output JSON by default
+**Global flag:**
+- `--root <path>`: Project root (default: `.`)
+
+**extract-var only:**
+- `--start-col <N>`, `--end-col <N>`: Precise column selection
+
+**Output:**
+- All commands output JSON to stdout
+- Refactoring commands return `{"patches": {...}}` - Claude Code applies patches to disk
+- Navigation commands return `{"locations": [...]}` or hover info
 
 ## Common Agent Patterns
 
 **Safe Rename Workflow:**
 ```bash
-# 1. Preview scope
+# 1. Preview scope (what will be renamed)
 python pyclide_client.py occurrences file.py 20 5 --root .
 
-# 2. Execute rename (apply patches to disk yourself)
+# 2. Get patches (returns JSON with file changes)
 python pyclide_client.py rename file.py 20 5 new_name --root .
+
+# 3. Apply patches to disk (Claude Code does this)
 ```
 
 **Refactoring Workflow:**
@@ -116,19 +126,19 @@ python pyclide_client.py rename file.py 20 5 new_name --root .
 # 1. Understand symbol
 python pyclide_client.py hover app.py 42 10 --root .
 
-# 2. Extract method
+# 2. Extract method (returns patches)
 python pyclide_client.py extract-method app.py 50 75 validate_input --root .
 
-# 3. Clean up
+# 3. Clean up imports (returns patches)
 python pyclide_client.py organize-imports . --root .
 ```
 
 **Code Reorganization:**
 ```bash
-# 1. Move symbol
+# 1. Move symbol (returns patches)
 python pyclide_client.py move utils.py 15 8 lib/helpers.py --root .
 
-# 2. Organize imports
+# 2. Organize imports (returns patches)
 python pyclide_client.py organize-imports . --root .
 ```
 
@@ -136,10 +146,11 @@ python pyclide_client.py organize-imports . --root .
 
 - **Architecture**: Client → HTTP → Server (auto-started via uvx)
 - **Server**: Caches Jedi scripts + Rope project, auto-shutdown after 30min inactivity
-- **Output**: All commands return JSON objects/arrays
-- **Patches**: Refactoring commands return `{"patches": {path: content}}` - YOU apply to disk
-- **Registry**: Servers tracked in `~/.pyclide/servers.json`, auto-cleanup on restart
-- **Requirements**: Python 3.8+, uvx (for server auto-start)
+- **Output**: All commands output JSON to stdout (always, no flags to change this)
+- **Patches**: Refactoring commands return `{"patches": {path: content}}` - client NEVER writes to disk
+- **Your job**: Parse JSON, apply patches yourself (Write tool)
+- **Registry**: Servers tracked in `~/.pyclide/servers.json`, auto-managed
+- **Requirements**: Python 3.8+, uvx (auto-installed via `pip install uv`)
 
 ## Performance Tips
 
