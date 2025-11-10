@@ -287,9 +287,9 @@ class PyCLIDEServer:
                 self._update_activity()
 
                 engine = self._get_rope_engine()
-                patches = engine.rename(req.file, req.line, req.col, req.new_name)
+                patches = engine.rename(req.file, req.line, req.col, req.new_name, req.output_format)
 
-                return PatchesResponse(patches=patches)
+                return PatchesResponse(patches=patches, format=req.output_format)
             except Exception as e:
                 logger.error(f"Error in semantic_rename: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -305,10 +305,11 @@ class PyCLIDEServer:
                     req.file,
                     req.start_line,
                     req.end_line,
-                    req.method_name
+                    req.method_name,
+                    req.output_format
                 )
 
-                return PatchesResponse(patches=patches)
+                return PatchesResponse(patches=patches, format=req.output_format)
             except Exception as e:
                 logger.error(f"Error in extract_method: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -326,10 +327,11 @@ class PyCLIDEServer:
                     req.end_line or req.start_line,
                     req.var_name,
                     start_col=req.start_col,
-                    end_col=req.end_col
+                    end_col=req.end_col,
+                    output_format=req.output_format
                 )
 
-                return PatchesResponse(patches=patches)
+                return PatchesResponse(patches=patches, format=req.output_format)
             except Exception as e:
                 logger.error(f"Error in extract_variable: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -342,9 +344,9 @@ class PyCLIDEServer:
 
                 engine = self._get_rope_engine()
                 file_path = self.root / req.file
-                patches = engine.organize_imports(file_path, convert_froms=False)
+                patches = engine.organize_imports(file_path, convert_froms=False, output_format=req.output_format)
 
-                return PatchesResponse(patches=patches)
+                return PatchesResponse(patches=patches, format=req.output_format)
             except Exception as e:
                 logger.error(f"Error in organize_imports: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
@@ -357,9 +359,9 @@ class PyCLIDEServer:
 
                 engine = self._get_rope_engine()
                 # Move symbol at specified line/col, or entire file if not specified
-                patches = engine.move(req.file, req.dest_file, req.line, req.col)
+                patches = engine.move(req.file, req.dest_file, req.line, req.col, req.output_format)
 
-                return PatchesResponse(patches=patches)
+                return PatchesResponse(patches=patches, format=req.output_format)
             except Exception as e:
                 logger.error(f"Error in move_symbol: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))

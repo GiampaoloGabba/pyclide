@@ -119,7 +119,8 @@ def test_registration():
                 "line": 4,
                 "col": 7,
                 "new_name": "Account",
-                "root": str(root)
+                "root": str(root),
+                "output_format": "full"
             }
         )
         assert rename_response.status_code == 200

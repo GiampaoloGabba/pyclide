@@ -34,7 +34,8 @@ def test_calculate():
                 "line": 2,
                 "col": 5,
                 "new_name": "compute",
-                "root": str(temp_workspace)
+                "root": str(temp_workspace),
+                "output_format": "full"
             }
         )
 

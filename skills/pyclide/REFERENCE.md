@@ -10,6 +10,12 @@ Complete syntax reference for all PyCLIDE commands. See `SKILL.md` for quickstar
 - Client auto-starts server via uvx on first request
 - Refactoring commands return patches (client NEVER writes to disk - your job to apply)
 
+**Output Format Flag (Refactoring Commands Only):**
+- `--output-format <diff|full>` (default: `diff`)
+  - `diff`: Unified diff format showing only changes (token-efficient)
+  - `full`: Complete new file contents (fallback)
+- Applies to: `rename`, `extract-method`, `extract-var`, `move`, `organize-imports`
+
 **Exit codes:**
 - `0`: Success
 - `1`: Error (missing dependency, server failure, invalid arguments, etc.)
@@ -77,11 +83,11 @@ Find semantic occurrences within rename scope. More conservative than `refs`, sa
 
 ---
 
-### `rename <file> <line> <col> <new-name>`
+### `rename <file> <line> <col> <new-name> [--output-format diff|full]`
 
 Semantic rename: renames symbol definition, all references, and updates imports automatically.
 
-**Syntax:** `python pyclide_client.py rename <file> <line> <col> <new-name> [--root <path>]`
+**Syntax:** `python pyclide_client.py rename <file> <line> <col> <new-name> [--output-format diff|full] [--root <path>]`
 
 **Arguments:**
 - `new-name`: New identifier (must be valid Python identifier)
@@ -94,11 +100,11 @@ Semantic rename: renames symbol definition, all references, and updates imports 
 
 ---
 
-### `extract-method <file> <start-line> <end-line> <new-method-name>`
+### `extract-method <file> <start-line> <end-line> <new-method-name> [--output-format diff|full]`
 
 Extract code block (lines `start-line` to `end-line`) into a new method.
 
-**Syntax:** `python pyclide_client.py extract-method <file> <start-line> <end-line> <new-method-name> [--root <path>]`
+**Syntax:** `python pyclide_client.py extract-method <file> <start-line> <end-line> <new-method-name> [--output-format diff|full] [--root <path>]`
 
 **Arguments:**
 - `start-line`, `end-line`: Inclusive range (1-based)
@@ -110,11 +116,11 @@ Extract code block (lines `start-line` to `end-line`) into a new method.
 
 ---
 
-### `extract-var <file> <start-line> <end-line> <new-var-name> [--start-col <N>] [--end-col <N>]`
+### `extract-var <file> <start-line> <end-line> <new-var-name> [--start-col <N>] [--end-col <N>] [--output-format diff|full]`
 
 Extract expression into a new variable. Supports precise column selection.
 
-**Syntax:** `python pyclide_client.py extract-var <file> <start-line> <end-line> <new-var-name> [--start-col <N>] [--end-col <N>] [--root <path>]`
+**Syntax:** `python pyclide_client.py extract-var <file> <start-line> <end-line> <new-var-name> [--start-col <N>] [--end-col <N>] [--output-format diff|full] [--root <path>]`
 
 **Column behavior:**
 - No columns: Extract entire line(s)
@@ -130,11 +136,11 @@ Extract expression into a new variable. Supports precise column selection.
 
 ---
 
-### `move <file> <line> <col> <target-file>`
+### `move <file> <line> <col> <target-file> [--output-format diff|full]`
 
 Move symbol at position to target file. Updates imports automatically.
 
-**Syntax:** `python pyclide_client.py move <file> <line> <col> <target-file> [--root <path>]`
+**Syntax:** `python pyclide_client.py move <file> <line> <col> <target-file> [--output-format diff|full] [--root <path>]`
 
 **Arguments:**
 - `file`, `line`, `col`: Position of symbol to move
@@ -148,11 +154,11 @@ Move symbol at position to target file. Updates imports automatically.
 
 ---
 
-### `organize-imports <path>`
+### `organize-imports <path> [--output-format diff|full]`
 
 Normalize imports in file or directory (recursive).
 
-**Syntax:** `python pyclide_client.py organize-imports <path> [--root <path>]`
+**Syntax:** `python pyclide_client.py organize-imports <path> [--output-format diff|full] [--root <path>]`
 
 **Arguments:**
 - `path`: File or directory to organize (relative to `--root`)
@@ -244,12 +250,26 @@ fix: new_api_call($ARGS)
 ```
 
 ### Patches (rename, extract-*, move, organize-imports)
+
+**Diff format (default):**
+```json
+{
+  "patches": {
+    "file1.py": "--- a/file1.py\n+++ b/file1.py\n@@ -10,3 +10,3 @@\n-old_code\n+new_code\n",
+    "file2.py": "--- a/file2.py\n+++ b/file2.py\n@@ -5,2 +5,2 @@\n-old_import\n+new_import\n"
+  },
+  "format": "diff"
+}
+```
+
+**Full format:**
 ```json
 {
   "patches": {
     "file1.py": "complete new file contents...",
     "file2.py": "complete new file contents..."
-  }
+  },
+  "format": "full"
 }
 ```
 
@@ -270,6 +290,30 @@ fix: new_api_call($ARGS)
   "applied": false
 }
 ```
+
+---
+
+## Applying Patches
+
+**Diff format (recommended):**
+1. Parse unified diff to extract `old_string` and `new_string` from each hunk
+2. Use Edit tool: `Edit(file_path, old_string, new_string)`
+3. 90% token savings compared to full format
+
+**Full format:**
+1. Use Write tool: `Write(file_path, content)`
+2. Overwrites entire file
+3. Use as fallback if diff parsing fails
+
+**Unified diff structure:**
+```
+--- a/file.py
++++ b/file.py
+@@ -20,1 +20,1 @@
+-old_name
++new_name
+```
+Lines starting with `-` are removed, lines starting with `+` are added.
 
 ---
 

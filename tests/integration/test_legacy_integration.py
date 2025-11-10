@@ -210,7 +210,8 @@ def use_calculator():
                 "line": 3,
                 "col": 9,
                 "new_name": "compute",
-                "root": str(workflow_project)
+                "root": str(workflow_project),
+                "output_format": "full"
             }
         )
 

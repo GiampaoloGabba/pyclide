@@ -272,7 +272,7 @@ def func():
 """)
 
         engine = RopeEngine(tmp_path)
-        patches = engine.rename("test.py", 3, 5, "new_name")
+        patches = engine.rename("test.py", 3, 5, "new_name", output_format="full")
 
         assert isinstance(patches, dict)
         assert len(patches) > 0
@@ -292,7 +292,7 @@ result = old_func()
 """)
 
         engine = RopeEngine(tmp_path)
-        patches = engine.rename("test.py", 2, 5, "new_func")
+        patches = engine.rename("test.py", 2, 5, "new_func", output_format="full")
 
         assert isinstance(patches, dict)
         content = list(patches.values())[0]
@@ -309,7 +309,7 @@ obj = OldClass()
 """)
 
         engine = RopeEngine(tmp_path)
-        patches = engine.rename("test.py", 2, 7, "NewClass")
+        patches = engine.rename("test.py", 2, 7, "NewClass", output_format="full")
 
         assert isinstance(patches, dict)
         content = list(patches.values())[0]
@@ -324,7 +324,7 @@ obj = OldClass()
         file2.write_text("from module import old_name\nold_name()\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.rename("module.py", 1, 5, "new_name")
+        patches = engine.rename("module.py", 1, 5, "new_name", output_format="full")
 
         # Should modify both files
         assert isinstance(patches, dict)
@@ -339,7 +339,7 @@ obj = OldClass()
         engine = RopeEngine(tmp_path)
         # Invalid name with spaces/special chars - Rope might accept or reject
         try:
-            patches = engine.rename("test.py", 1, 1, "invalid name!")
+            patches = engine.rename("test.py", 1, 1, "invalid name!", output_format="full")
             # If succeeds, should still return dict
             assert isinstance(patches, dict)
         except Exception:
@@ -354,7 +354,7 @@ obj = OldClass()
         engine = RopeEngine(tmp_path)
         # Try to rename 'len' - should fail or return empty
         try:
-            patches = engine.rename("test.py", 1, 5, "my_len")
+            patches = engine.rename("test.py", 1, 5, "my_len", output_format="full")
             # If succeeds, should not modify builtins
             assert isinstance(patches, dict)
         except Exception:
@@ -368,7 +368,7 @@ obj = OldClass()
 
         engine = RopeEngine(tmp_path)
         with pytest.raises(Exception):
-            engine.rename("test.py", 100, 100, "new_name")
+            engine.rename("test.py", 100, 100, "new_name", output_format="full")
 
     def test_rename_returns_dict(self, tmp_path):
         """Rename always returns Dict[str, str]."""
@@ -376,7 +376,7 @@ obj = OldClass()
         test_file.write_text("x = 1\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.rename("test.py", 1, 1, "y")
+        patches = engine.rename("test.py", 1, 1, "y", output_format="full")
 
         assert isinstance(patches, dict)
         for key, value in patches.items():
@@ -402,7 +402,7 @@ def func():
 
         engine = RopeEngine(tmp_path)
         # Extract line 5 (z = x + y)
-        patches = engine.extract_method("test.py", 5, 5, "calc_sum")
+        patches = engine.extract_method("test.py", 5, 5, "calc_sum", output_format="full")
 
         assert isinstance(patches, dict)
         if patches:  # Rope might refuse if not valid extraction
@@ -422,7 +422,7 @@ def func():
 
         engine = RopeEngine(tmp_path)
         # Extract lines 3-4
-        patches = engine.extract_method("test.py", 3, 4, "compute")
+        patches = engine.extract_method("test.py", 3, 4, "compute", output_format="full")
 
         assert isinstance(patches, dict)
 
@@ -439,7 +439,7 @@ def func():
         # start=4, end=3 (reversed)
         # Rope might handle this or raise
         try:
-            patches = engine.extract_method("test.py", 4, 3, "extracted")
+            patches = engine.extract_method("test.py", 4, 3, "extracted", output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Acceptable - invalid range
@@ -452,7 +452,7 @@ def func():
 
         engine = RopeEngine(tmp_path)
         with pytest.raises(Exception):
-            engine.extract_method("test.py", 10, 20, "extracted")
+            engine.extract_method("test.py", 10, 20, "extracted", output_format="full")
 
     def test_extract_method_invalid_name(self, tmp_path):
         """Extract with invalid method name."""
@@ -462,7 +462,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Rope might accept or reject invalid names
         try:
-            patches = engine.extract_method("test.py", 2, 2, "invalid-name")
+            patches = engine.extract_method("test.py", 2, 2, "invalid-name", output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Also acceptable
@@ -483,7 +483,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Try to extract with name "existing"
         try:
-            patches = engine.extract_method("test.py", 6, 6, "existing")
+            patches = engine.extract_method("test.py", 6, 6, "existing", output_format="full")
             # Rope might allow or reject duplicate names
             assert isinstance(patches, dict)
         except Exception:
@@ -508,7 +508,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Extract "10 + 20" on line 3
         # Columns are approximate (depends on spacing)
-        patches = engine.extract_variable("test.py", 3, 3, "sum_val", start_col=14, end_col=21)
+        patches = engine.extract_variable("test.py", 3, 3, "sum_val", start_col=14, end_col=21, output_format="full")
 
         assert isinstance(patches, dict)
 
@@ -523,7 +523,7 @@ def func():
 
         engine = RopeEngine(tmp_path)
         # Extract from col 9 to end of line
-        patches = engine.extract_variable("test.py", 3, 3, "expr", start_col=9, end_col=None)
+        patches = engine.extract_variable("test.py", 3, 3, "expr", start_col=9, end_col=None, output_format="full")
 
         assert isinstance(patches, dict)
 
@@ -539,7 +539,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Extract from line start to col 10 - Rope might require complete statements
         try:
-            patches = engine.extract_variable("test.py", 3, 3, "val", start_col=None, end_col=10)
+            patches = engine.extract_variable("test.py", 3, 3, "val", start_col=None, end_col=10, output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Acceptable - Rope might reject incomplete statements
@@ -557,7 +557,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # No columns specified - may include whitespace/syntax that Rope rejects
         try:
-            patches = engine.extract_variable("test.py", 3, 3, "extracted", start_col=None, end_col=None)
+            patches = engine.extract_variable("test.py", 3, 3, "extracted", start_col=None, end_col=None, output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Acceptable - entire line might include invalid syntax for extraction
@@ -577,7 +577,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Try to extract lines 3-4
         try:
-            patches = engine.extract_variable("test.py", 3, 4, "expr")
+            patches = engine.extract_variable("test.py", 3, 4, "expr", output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Might not be valid for variable extraction
@@ -591,7 +591,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Column 1000 is out of bounds
         with pytest.raises(Exception):
-            engine.extract_variable("test.py", 1, 1, "val", start_col=1, end_col=1000)
+            engine.extract_variable("test.py", 1, 1, "val", start_col=1, end_col=1000, output_format="full")
 
     def test_extract_var_invalid_name(self, tmp_path):
         """Extract variable with invalid name."""
@@ -601,7 +601,7 @@ def func():
         engine = RopeEngine(tmp_path)
         # Rope might accept or reject invalid names
         try:
-            patches = engine.extract_variable("test.py", 1, 1, "invalid-var", start_col=5, end_col=7)
+            patches = engine.extract_variable("test.py", 1, 1, "invalid-var", start_col=5, end_col=7, output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Also acceptable
@@ -626,7 +626,7 @@ def my_func():
 
         engine = RopeEngine(tmp_path)
         # Move my_func (line 2, col 5)
-        patches = engine.move("source.py", "target.py", line=2, col=5)
+        patches = engine.move("source.py", "target.py", line=2, col=5, output_format="full")
 
         assert isinstance(patches, dict)
         # Should modify both source and target
@@ -644,7 +644,7 @@ def my_func():
         # Module-level move with offset=0 requires valid identifier at position 0
         # This might work for function definitions but not for comments/whitespace
         try:
-            patches = engine.move("source.py", "target.py", line=1, col=5)  # On "func"
+            patches = engine.move("source.py", "target.py", line=1, col=5, output_format="full")  # On "func"
             assert isinstance(patches, dict)
         except Exception:
             # Module-level move is complex and might fail in various cases
@@ -658,7 +658,7 @@ def my_func():
         engine = RopeEngine(tmp_path)
         # Target doesn't exist
         try:
-            patches = engine.move("source.py", "new_target.py", line=1, col=5)
+            patches = engine.move("source.py", "new_target.py", line=1, col=5, output_format="full")
             # Rope might create it or fail
             assert isinstance(patches, dict)
         except Exception:
@@ -678,7 +678,7 @@ class MyClass:
         target.write_text("")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.move("source.py", "target.py", line=2, col=7)
+        patches = engine.move("source.py", "target.py", line=2, col=7, output_format="full")
 
         assert isinstance(patches, dict)
 
@@ -693,7 +693,7 @@ class MyClass:
         engine = RopeEngine(tmp_path)
         # Only line, no col - should still work via offset=0
         try:
-            patches = engine.move("source.py", "target.py", line=1, col=None)
+            patches = engine.move("source.py", "target.py", line=1, col=None, output_format="full")
             assert isinstance(patches, dict)
         except Exception:
             # Rope might require both or neither
@@ -722,7 +722,7 @@ def use_imports():
 """)
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(test_file, convert_froms=False)
+        patches = engine.organize_imports(test_file, convert_froms=False, output_format="full")
 
         assert isinstance(patches, dict)
         # May or may not have changes depending on what Rope considers organized
@@ -733,7 +733,7 @@ def use_imports():
         test_file.write_text("from os import path\nprint(path.exists('.'))\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(test_file, convert_froms=False)
+        patches = engine.organize_imports(test_file, convert_froms=False, output_format="full")
 
         assert isinstance(patches, dict)
 
@@ -743,7 +743,7 @@ def use_imports():
         test_file.write_text("from os import path\nprint(path.exists('.'))\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(test_file, convert_froms=True)
+        patches = engine.organize_imports(test_file, convert_froms=True, output_format="full")
 
         assert isinstance(patches, dict)
         # Might convert "from os import path" to "import os"
@@ -760,7 +760,7 @@ def use_imports():
         file2.write_text("import json\nprint(json.dumps({}))\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(subdir, convert_froms=False)
+        patches = engine.organize_imports(subdir, convert_froms=False, output_format="full")
 
         assert isinstance(patches, dict)
         # May organize multiple files
@@ -771,7 +771,7 @@ def use_imports():
         fake_path = tmp_path / "nonexistent.py"
 
         with pytest.raises(ValueError, match="Path not found"):
-            engine.organize_imports(fake_path, convert_froms=False)
+            engine.organize_imports(fake_path, convert_froms=False, output_format="full")
 
     def test_organize_imports_no_imports(self, tmp_path):
         """Organize imports on file with no imports."""
@@ -779,7 +779,7 @@ def use_imports():
         test_file.write_text("x = 1\nprint(x)\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(test_file, convert_froms=False)
+        patches = engine.organize_imports(test_file, convert_froms=False, output_format="full")
 
         # Should return empty dict (no changes)
         assert isinstance(patches, dict)
@@ -791,7 +791,7 @@ def use_imports():
         test_file.write_text("import os\nimport sys\nprint(os.getcwd())\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(test_file, convert_froms=False)
+        patches = engine.organize_imports(test_file, convert_froms=False, output_format="full")
 
         # Might return empty if already organized
         assert isinstance(patches, dict)
@@ -803,7 +803,7 @@ def use_imports():
 
         engine = RopeEngine(tmp_path)
         # Should not crash, silently skip file
-        patches = engine.organize_imports(test_file, convert_froms=False)
+        patches = engine.organize_imports(test_file, convert_froms=False, output_format="full")
 
         assert isinstance(patches, dict)
         # Should be empty (couldn't process)
@@ -814,7 +814,7 @@ def use_imports():
         test_file.write_text("import os\nimport sys\nimport unused_module\nprint(os.getcwd())\n")
 
         engine = RopeEngine(tmp_path)
-        patches = engine.organize_imports(test_file, convert_froms=False)
+        patches = engine.organize_imports(test_file, convert_froms=False, output_format="full")
 
         # Rope might or might not remove unused imports
         assert isinstance(patches, dict)

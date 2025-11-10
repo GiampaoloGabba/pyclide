@@ -1,13 +1,12 @@
 ---
 name: pyclide
 description: >
-  Python semantic IDE using Jedi+Rope: go-to-definition, find-references, rename with automatic import updates,
-  extract method/variable, move symbols between files, organize imports, and get hover info (signatures/docstrings).
-
-  Triggers: "python definition", "python references", "python rename", "python refactor",
-  "extract python method", "extract python variable", "move python function", "move python class",
-  "organize python imports", "python semantic search", "python hover info", "python symbol info",
-  "refactor python code", "python code navigation"
+  Semantic code analysis and refactoring for Python projects using Jedi and Rope.
+  Provides go-to-definition, find-references, rename with import updates, extract method/variable,
+  move symbols between files, organize imports, and hover info.
+  Use when navigating Python code, performing semantic search, renaming symbols, refactoring code,
+  extracting methods or variables, moving functions or classes, organizing imports, or getting
+  symbol information in Python projects.
 ---
 
 # PyCLIDE - Python Semantic IDE
@@ -57,7 +56,6 @@ All commands use: `python pyclide_client.py <command> <args> [--root .]`
 
 **`rename <file> <line> <col> <new-name>`**
 - Semantic rename with automatic import updates
-- Returns patches: `{"patches": {"file.py": "new_content", ...}}`
 - Updates: symbol definition, references, imports
 
 **`extract-method <file> <start-line> <end-line> <method-name>`**
@@ -95,30 +93,57 @@ All commands use: `python pyclide_client.py <command> <args> [--root .]`
 - Default: dry-run preview
 - `--apply`: apply transformations
 
+## Output Formats & Applying Changes
+
+**All refactoring commands** (`rename`, `extract-method`, `extract-var`, `move`, `organize-imports`) **support two output formats:**
+
+**`--output-format diff` (default)** - Unified diffs (90% token savings)
+- Returns only changed lines with context
+- Apply using Edit tool (extract old_string → new_string from diff)
+- Most efficient for incremental changes
+
+**`--output-format full`** - Complete file contents
+- Returns entire new file contents
+- Apply using Write tool
+- Use as fallback if diff parsing fails
+
+**Example response (diff format):**
+```json
+{
+  "patches": {
+    "file.py": "--- a/file.py\n+++ b/file.py\n@@ -20,1 +20,1 @@\n-old_name\n+new_name\n"
+  },
+  "format": "diff"
+}
+```
+
+**Your job:** Parse the diff to extract old_string/new_string, then use Edit tool to apply changes.
+
 ## Flags and Output
 
-**Global flag:**
+**Global flags:**
 - `--root <path>`: Project root (default: `.`)
+- `--output-format <diff|full>`: Refactoring output (default: `diff`) - see "Output Formats" above
 
 **extract-var only:**
 - `--start-col <N>`, `--end-col <N>`: Precise column selection
 
 **Output:**
 - All commands output JSON to stdout
-- Refactoring commands return `{"patches": {...}}` - Claude Code applies patches to disk
-- Navigation commands return `{"locations": [...]}` or hover info
+- Refactoring: `{"patches": {...}, "format": "diff|full"}` - see "Output Formats" section
+- Navigation: `{"locations": [...]}` or hover info
 
 ## Common Agent Patterns
 
 **Safe Rename Workflow:**
 ```bash
-# 1. Preview scope (what will be renamed)
+# 1. Preview scope
 python pyclide_client.py occurrences file.py 20 5 --root .
 
-# 2. Get patches (returns JSON with file changes)
+# 2. Get patches (returns diff by default)
 python pyclide_client.py rename file.py 20 5 new_name --root .
 
-# 3. Apply patches to disk (Claude Code does this)
+# 3. Apply patches using Edit tool (parse diff for old/new strings)
 ```
 
 **Refactoring Workflow:**
@@ -126,19 +151,19 @@ python pyclide_client.py rename file.py 20 5 new_name --root .
 # 1. Understand symbol
 python pyclide_client.py hover app.py 42 10 --root .
 
-# 2. Extract method (returns patches)
+# 2. Extract method
 python pyclide_client.py extract-method app.py 50 75 validate_input --root .
 
-# 3. Clean up imports (returns patches)
+# 3. Clean up imports
 python pyclide_client.py organize-imports . --root .
 ```
 
 **Code Reorganization:**
 ```bash
-# 1. Move symbol (returns patches)
+# 1. Move symbol
 python pyclide_client.py move utils.py 15 8 lib/helpers.py --root .
 
-# 2. Organize imports (returns patches)
+# 2. Organize imports
 python pyclide_client.py organize-imports . --root .
 ```
 

@@ -305,10 +305,10 @@ def handle_hover(args: List[str], root: str) -> None:
     print(json.dumps(result, indent=2))
 
 
-def handle_rename(args: List[str], root: str) -> None:
+def handle_rename(args: List[str], root: str, output_format: str = "diff") -> None:
     """Handle 'rename' command (semantic rename)."""
     if len(args) < 4:
-        print("Usage: pyclide_client.py rename <file> <line> <col> <new_name> [--root <root>]", file=sys.stderr)
+        print("Usage: pyclide_client.py rename <file> <line> <col> <new_name> [--root <root>] [--output-format <diff|full>]", file=sys.stderr)
         sys.exit(1)
 
     file_path, line, col, new_name = args[0], int(args[1]), int(args[2]), args[3]
@@ -319,7 +319,8 @@ def handle_rename(args: List[str], root: str) -> None:
         "line": line,
         "col": col,
         "new_name": new_name,
-        "root": root
+        "root": root,
+        "output_format": output_format
     })
 
     print(json.dumps(result, indent=2))
@@ -344,10 +345,10 @@ def handle_occurrences(args: List[str], root: str) -> None:
     print(json.dumps(result, indent=2))
 
 
-def handle_extract_method(args: List[str], root: str) -> None:
+def handle_extract_method(args: List[str], root: str, output_format: str = "diff") -> None:
     """Handle 'extract-method' command (extract code to method)."""
     if len(args) < 4:
-        print("Usage: pyclide_client.py extract-method <file> <start_line> <end_line> <method_name> [--root <root>]", file=sys.stderr)
+        print("Usage: pyclide_client.py extract-method <file> <start_line> <end_line> <method_name> [--root <root>] [--output-format <diff|full>]", file=sys.stderr)
         sys.exit(1)
 
     file_path, start_line, end_line, method_name = args[0], int(args[1]), int(args[2]), args[3]
@@ -358,16 +359,17 @@ def handle_extract_method(args: List[str], root: str) -> None:
         "start_line": start_line,
         "end_line": end_line,
         "method_name": method_name,
-        "root": root
+        "root": root,
+        "output_format": output_format
     })
 
     print(json.dumps(result, indent=2))
 
 
-def handle_extract_var(args: List[str], root: str) -> None:
+def handle_extract_var(args: List[str], root: str, output_format: str = "diff") -> None:
     """Handle 'extract-var' command (extract expression to variable)."""
     if len(args) < 4:
-        print("Usage: pyclide_client.py extract-var <file> <start_line> <end_line> <var_name> [--start-col <col>] [--end-col <col>] [--root <root>]", file=sys.stderr)
+        print("Usage: pyclide_client.py extract-var <file> <start_line> <end_line> <var_name> [--start-col <col>] [--end-col <col>] [--root <root>] [--output-format <diff|full>]", file=sys.stderr)
         sys.exit(1)
 
     file_path, start_line, end_line, var_name = args[0], int(args[1]), int(args[2]), args[3]
@@ -391,7 +393,8 @@ def handle_extract_var(args: List[str], root: str) -> None:
         "start_line": start_line,
         "end_line": end_line,
         "var_name": var_name,
-        "root": root
+        "root": root,
+        "output_format": output_format
     }
     if start_col is not None:
         request_data["start_col"] = start_col
@@ -403,10 +406,10 @@ def handle_extract_var(args: List[str], root: str) -> None:
     print(json.dumps(result, indent=2))
 
 
-def handle_move(args: List[str], root: str) -> None:
+def handle_move(args: List[str], root: str, output_format: str = "diff") -> None:
     """Handle 'move' command (move symbol/module)."""
     if len(args) < 4:
-        print("Usage: pyclide_client.py move <file> <line> <col> <dest_file> [--root <root>]", file=sys.stderr)
+        print("Usage: pyclide_client.py move <file> <line> <col> <dest_file> [--root <root>] [--output-format <diff|full>]", file=sys.stderr)
         sys.exit(1)
 
     file_path, line, col, dest_file = args[0], int(args[1]), int(args[2]), args[3]
@@ -417,16 +420,17 @@ def handle_move(args: List[str], root: str) -> None:
         "line": line,
         "col": col,
         "dest_file": dest_file,
-        "root": root
+        "root": root,
+        "output_format": output_format
     })
 
     print(json.dumps(result, indent=2))
 
 
-def handle_organize_imports(args: List[str], root: str) -> None:
+def handle_organize_imports(args: List[str], root: str, output_format: str = "diff") -> None:
     """Handle 'organize-imports' command (normalize imports)."""
     if len(args) < 1:
-        print("Usage: pyclide_client.py organize-imports <file> [--root <root>]", file=sys.stderr)
+        print("Usage: pyclide_client.py organize-imports <file> [--root <root>] [--output-format <diff|full>]", file=sys.stderr)
         sys.exit(1)
 
     file_path = args[0]
@@ -434,7 +438,8 @@ def handle_organize_imports(args: List[str], root: str) -> None:
 
     result = send_request(server_info, "organize-imports", {
         "file": file_path,
-        "root": root
+        "root": root,
+        "output_format": output_format
     })
 
     print(json.dumps(result, indent=2))
@@ -575,6 +580,19 @@ def main() -> None:
             sys.argv.pop(idx)  # Remove --root
             sys.argv.pop(idx)  # Remove value
 
+    # Parse --output-format flag (default: "diff")
+    output_format = "diff"
+    if "--output-format" in sys.argv:
+        idx = sys.argv.index("--output-format")
+        if idx + 1 < len(sys.argv):
+            output_format = sys.argv[idx + 1]
+            if output_format not in ("diff", "full"):
+                print(f"Error: --output-format must be 'diff' or 'full', got '{output_format}'", file=sys.stderr)
+                sys.exit(1)
+            # Remove --output-format and its value from args
+            sys.argv.pop(idx)  # Remove --output-format
+            sys.argv.pop(idx)  # Remove value
+
     # Get remaining args (after command)
     args = sys.argv[2:]
 
@@ -601,7 +619,12 @@ def main() -> None:
         print(f"Error: Unknown command '{command}'", file=sys.stderr)
         sys.exit(1)
 
-    handler(args, root)
+    # Pass output_format to refactoring commands
+    refactoring_commands = {"rename", "extract-method", "extract-var", "move", "organize-imports"}
+    if command in refactoring_commands:
+        handler(args, root, output_format)
+    else:
+        handler(args, root)
 
 
 if __name__ == "__main__":

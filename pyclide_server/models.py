@@ -2,7 +2,7 @@
 Pydantic models for request/response validation.
 """
 
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Literal
 
 from pydantic import BaseModel, Field
 
@@ -47,6 +47,7 @@ class RenameRequest(BaseModel):
     col: int = Field(..., description="1-based column number")
     new_name: str = Field(..., description="New name for the symbol")
     root: str = Field(..., description="Workspace root path")
+    output_format: Literal["diff", "full"] = Field("diff", description="Output format: 'diff' for unified diffs, 'full' for complete file contents")
 
 
 class OccurrencesRequest(BaseModel):
@@ -64,6 +65,7 @@ class ExtractMethodRequest(BaseModel):
     end_line: int = Field(..., description="End line (1-based)")
     method_name: str = Field(..., description="Name for the extracted method")
     root: str = Field(..., description="Workspace root path")
+    output_format: Literal["diff", "full"] = Field("diff", description="Output format: 'diff' for unified diffs, 'full' for complete file contents")
 
 
 class ExtractVarRequest(BaseModel):
@@ -75,12 +77,14 @@ class ExtractVarRequest(BaseModel):
     end_col: Optional[int] = Field(None, description="End column (1-based)")
     var_name: str = Field(..., description="Name for the extracted variable")
     root: str = Field(..., description="Workspace root path")
+    output_format: Literal["diff", "full"] = Field("diff", description="Output format: 'diff' for unified diffs, 'full' for complete file contents")
 
 
 class OrganizeImportsRequest(BaseModel):
     """Request for organize imports."""
     file: str = Field(..., description="Relative path to file from workspace root")
     root: str = Field(..., description="Workspace root path")
+    output_format: Literal["diff", "full"] = Field("diff", description="Output format: 'diff' for unified diffs, 'full' for complete file contents")
 
 
 class MoveRequest(BaseModel):
@@ -90,6 +94,7 @@ class MoveRequest(BaseModel):
     col: int = Field(..., description="1-based column number")
     dest_file: str = Field(..., description="Destination file path")
     root: str = Field(..., description="Workspace root path")
+    output_format: Literal["diff", "full"] = Field("diff", description="Output format: 'diff' for unified diffs, 'full' for complete file contents")
 
 
 class ListRequest(BaseModel):
@@ -123,7 +128,8 @@ class HoverInfo(BaseModel):
 
 class PatchesResponse(BaseModel):
     """Response containing file patches."""
-    patches: Dict[str, str] = Field(..., description="Map of file path to new content")
+    patches: Dict[str, str] = Field(..., description="Map of file path to content (diff or full)")
+    format: Literal["diff", "full"] = Field("diff", description="Format of patches: 'diff' for unified diffs, 'full' for complete file contents")
 
 
 class SymbolInfo(BaseModel):
