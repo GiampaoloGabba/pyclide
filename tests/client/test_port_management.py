@@ -163,12 +163,14 @@ class TestAllocatePort:
             attempts[0] += 1
             return False  # Always unavailable
 
-        with patch("pyclide_client.is_port_available", side_effect=count_attempts):
-            with pytest.raises(RuntimeError):
-                allocate_port()
+        # Mock registry to be empty so all ports are checked
+        with patch("pyclide_client.load_registry", return_value={"servers": []}):
+            with patch("pyclide_client.is_port_available", side_effect=count_attempts):
+                with pytest.raises(RuntimeError):
+                    allocate_port()
 
-            # Should try 1000 times (5000-5999)
-            assert attempts[0] == 1000
+                # Should try 1000 times (5000-5999)
+                assert attempts[0] == 1000
 
     def test_allocate_port_incremental_search(self):
         """allocate_port() searches incrementally from 5000."""
@@ -179,12 +181,14 @@ class TestAllocatePort:
             # Available on 4th port
             return len(checked_ports) >= 4
 
-        with patch("pyclide_client.is_port_available", side_effect=track_checks):
-            port = allocate_port()
+        # Mock registry to be empty so all ports are checked
+        with patch("pyclide_client.load_registry", return_value={"servers": []}):
+            with patch("pyclide_client.is_port_available", side_effect=track_checks):
+                port = allocate_port()
 
-            # Should have checked ports in order
-            assert checked_ports == [5000, 5001, 5002, 5003]
-            assert port == 5003
+                # Should have checked ports in order
+                assert checked_ports == [5000, 5001, 5002, 5003]
+                assert port == 5003
 
 
 @pytest.mark.client

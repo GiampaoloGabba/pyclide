@@ -418,7 +418,7 @@ class TestExtractMethodCommandE2E:
     def test_extract_method_basic(self, e2e_workspace, temp_registry, capsys):
         """Test extracting code block to method (full E2E)."""
         handle_extract_method(
-            ["sample_module.py", "13", "14", "get_greeting"],  # Extract lines 13-14
+            ["sample_module.py", "14", "15", "get_greeting"],  # Extract lines 14-15 (function body)
             str(e2e_workspace)
         )
 
@@ -440,10 +440,20 @@ class TestExtractMethodCommandE2E:
 class TestExtractVarCommandE2E:
     """E2E tests for 'extract-var' command."""
 
-    def test_extract_var_basic(self, e2e_workspace, temp_registry, capsys):
+    def test_extract_var_basic(self, e2e_workspace, temp_registry, capsys, monkeypatch):
         """Test extracting expression to variable (full E2E)."""
+        # Extract expression from calculate_sum function (line 20: result = a + b)
+        # Line 20: "    result = a + b"
+        # Column positions (1-based): "a" starts at col 14, "b" is at col 18, end_col=19 (exclusive)
+
+        # Patch sys.argv to include column parameters
+        monkeypatch.setattr('sys.argv', ['pyclide_client.py', 'extract-var',
+                                          'sample_module.py', '20', '20', 'sum_expr',
+                                          '--start-col', '14', '--end-col', '19',
+                                          '--root', str(e2e_workspace)])
+
         handle_extract_var(
-            ["sample_module.py", "13", "13", "result_var"],  # Extract line 13
+            ["sample_module.py", "20", "20", "sum_expr"],
             str(e2e_workspace)
         )
 
