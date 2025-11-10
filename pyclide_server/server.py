@@ -23,11 +23,7 @@ from .models import (
 )
 from .rope_engine import RopeEngine
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Get logger (configuration done in __main__.py)
 logger = logging.getLogger(__name__)
 
 

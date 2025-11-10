@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -38,6 +39,25 @@ def main():
 
     args = parser.parse_args()
 
+    # Configure logging before importing server modules
+    if args.daemon:
+        # Setup logging to file for daemon mode
+        log_dir = Path.home() / ".pyclide" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"server_{args.port}.log"
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[logging.FileHandler(log_file)]
+        )
+    else:
+        # Console logging for non-daemon mode
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
     # Validate workspace root
     workspace_root = Path(args.root).resolve()
     if not workspace_root.exists():
@@ -51,13 +71,27 @@ def main():
     # Daemon mode: detach from terminal
     if args.daemon:
         if sys.platform == "win32":
-            # On Windows, the client should handle process creation with DETACHED_PROCESS
-            # Here we just ensure we don't block on stdin/stdout
-            pass
+            # On Windows, detach from console to prevent CMD window
+            try:
+                import ctypes
+                kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                if kernel32.FreeConsole():
+                    # Successfully detached from console
+                    # Redirect stdout/stderr to null to avoid write errors
+                    sys.stdout = open('nul', 'w')
+                    sys.stderr = open('nul', 'w')
+                    sys.stdin = open('nul', 'r')
+            except Exception:
+                # If FreeConsole fails, continue anyway (client might have used CREATE_NO_WINDOW)
+                pass
         else:
-            # On Unix, we could fork here, but the client handles start_new_session=True
-            # So we just continue normally
-            pass
+            # On Unix, redirect streams to /dev/null
+            try:
+                sys.stdout = open('/dev/null', 'w')
+                sys.stderr = open('/dev/null', 'w')
+                sys.stdin = open('/dev/null', 'r')
+            except Exception:
+                pass
 
     # Create and start server
     try:
