@@ -165,13 +165,15 @@ def start_server_via_uvx(workspace_root: str) -> Dict[str, Any]:
 
     try:
         if sys.platform == "win32":
-            # Windows: detached process without console window
-            CREATE_NO_WINDOW = 0x08000000  # Windows constant
+            # Windows: Use cmd.exe with /c start /b to launch in background without window
+            # This prevents CMD window from appearing when uvx runs
+            CREATE_NO_WINDOW = 0x08000000
             subprocess.Popen(
-                cmd,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+                ["cmd.exe", "/c", "start", "/b"] + cmd,
+                creationflags=CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL
             )
         else:
             # Unix: new session
